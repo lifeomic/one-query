@@ -1,3 +1,10 @@
+import {
+  UseMutationOptions,
+  UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult,
+} from '@tanstack/react-query';
+
 /**
  * Extracts the path parameters from a route.
  *
@@ -36,7 +43,28 @@ export type RequestPayloadOf<
   Route extends keyof Endpoints,
 > = Endpoints[Route]['Request'] & PathParamsOf<Route>;
 
-export type RequestResponseOf<
-  Endpoints extends RoughEndpoints,
-  Route extends keyof Endpoints,
-> = Endpoints[Route]['Response'];
+type RestrictedUseQueryOptions<Response> = Omit<
+  UseQueryOptions<Response, unknown>,
+  'queryKey' | 'queryFn'
+>;
+
+export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
+  useQuery: <Route extends keyof Endpoints & string>(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+    options?: RestrictedUseQueryOptions<Endpoints[Route]['Response']>,
+  ) => UseQueryResult<Endpoints[Route]['Response']>;
+
+  useMutation: <Route extends keyof Endpoints & string>(
+    route: Route,
+    options?: UseMutationOptions<
+      Endpoints[Route]['Response'],
+      unknown,
+      RequestPayloadOf<Endpoints, Route>
+    >,
+  ) => UseMutationResult<
+    Endpoints[Route]['Response'],
+    unknown,
+    RequestPayloadOf<Endpoints, Route>
+  >;
+};

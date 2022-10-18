@@ -83,3 +83,15 @@ export class APIClient<Endpoints extends RoughEndpoints> {
     });
   }
 }
+
+export type InternalQueryKey = {
+  name: string;
+  route: string;
+  payload: unknown;
+};
+
+export const createQueryKey = (
+  name: string,
+  route: string,
+  payload: unknown,
+): InternalQueryKey => ({ name, route, payload });
