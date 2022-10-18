@@ -1,4 +1,10 @@
-import { useQuery, useMutation, QueryKey } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  QueryKey,
+  useQueries,
+} from '@tanstack/react-query';
+import { combineQueries } from './combination';
 import { APIQueryHooks, RoughEndpoints } from './types';
 import { APIClient, createQueryKey } from './util';
 
@@ -25,5 +31,21 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
         (payload) => client.request(route, payload).then((res) => res.data),
         options,
       ),
+    useCombinedQueries: (...routes) => {
+      const queries = useQueries({
+        queries: routes.map(([endpoint, payload, options]) => ({
+          ...options,
+          queryKey: [createQueryKey('preventia', endpoint, payload)],
+          queryFn: () =>
+            client.request(endpoint, payload).then((res) => res.data),
+        })),
+      });
+
+      // The useQueries type inference is not quite as in-depth as ours is. So,
+      // the types don't fully agree here -- casting to `any` was a painful, but
+      // simple solution.
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      return combineQueries(queries as any);
+    },
   };
 };

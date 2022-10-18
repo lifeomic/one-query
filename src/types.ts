@@ -1,9 +1,11 @@
 import {
+  QueryObserverResult,
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query';
+import { CombinedQueriesResult } from './combination';
 
 /**
  * Extracts the path parameters from a route.
@@ -48,6 +50,19 @@ type RestrictedUseQueryOptions<Response> = Omit<
   'queryKey' | 'queryFn'
 >;
 
+export type CombinedRouteTuples<
+  Endpoints extends RoughEndpoints,
+  Routes extends (keyof Endpoints)[],
+> = {
+  [Index in keyof Routes]:
+    | [Routes[Index], RequestPayloadOf<Endpoints, Routes[Index]>]
+    | [
+        Routes[Index],
+        RequestPayloadOf<Endpoints, Routes[Index]>,
+        UseQueryOptions<Endpoints[Routes[Index]]['Response']> | undefined,
+      ];
+};
+
 export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
   useQuery: <Route extends keyof Endpoints & string>(
     route: Route,
@@ -67,4 +82,12 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
     unknown,
     RequestPayloadOf<Endpoints, Route>
   >;
+
+  useCombinedQueries<Routes extends (keyof Endpoints & string)[]>(
+    ...routes: [...CombinedRouteTuples<Endpoints, Routes>]
+  ): CombinedQueriesResult<{
+    [Index in keyof Routes]: QueryObserverResult<
+      Endpoints[Routes[Index]]['Response']
+    >;
+  }>;
 };
