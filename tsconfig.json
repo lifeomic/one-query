@@ -1,0 +1,12 @@
+{
+  "extends": "@lifeomic/typescript-config",
+  "include": ["./**/*.ts"],
+  "compilerOptions": {
+    "lib": ["es2020", "DOM"],
+    "outDir": "./dist",
+    "esModuleInterop": false,
+    "inlineSources": false,
+    "inlineSourceMap": false,
+    "declaration": true
+  }
+}
