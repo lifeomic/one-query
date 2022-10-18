@@ -516,4 +516,153 @@ describe('useCache', () => {
       });
     });
   });
+
+  describe('updateCache', () => {
+    const TestComponent: React.FC<{
+      getRenderData: () => string;
+      onPress: (cache: CacheUtils<TestEndpoints>) => void;
+    }> = ({ getRenderData, onPress }) => {
+      const cache = useCache();
+      const data = getRenderData();
+      return (
+        <>
+          <div data-testid="render-data">{data}</div>
+          <button onClick={() => onPress(cache)}>Update Cache</button>
+        </>
+      );
+    };
+
+    it('updates queries using static data', async () => {
+      network.mock('GET /items', {
+        status: 200,
+        data: { message: 'Frodo Baggins' },
+      });
+
+      const update = { message: 'Samwise Gamgee' };
+
+      const screen = render(() => (
+        <TestComponent
+          getRenderData={() => {
+            const { data } = useQuery('GET /items', { filter: '' });
+            return `Response: ${data?.message}`;
+          }}
+          onPress={(cache) => {
+            cache.updateCache('GET /items', { filter: '' }, update);
+          }}
+        />
+      ));
+
+      await screen.findByText('Response: Frodo Baggins');
+
+      expect(client.request).toHaveBeenCalledTimes(1);
+
+      TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+
+      // The update does not happen immediately.
+      await TestingLibrary.waitFor(() => {
+        expect(screen.getByTestId('render-data').textContent).toStrictEqual(
+          'Response: Samwise Gamgee',
+        );
+      });
+
+      // Confirm that another network call is not triggered.
+      expect(client.request).toHaveBeenCalledTimes(1);
+    });
+
+    it('updates queries using a function when there is existing data', async () => {
+      network.mock('GET /items', {
+        status: 200,
+        data: { message: 'Frodo Baggins' },
+      });
+
+      const screen = render(() => (
+        <TestComponent
+          getRenderData={() => {
+            const { data } = useQuery('GET /items', { filter: '' });
+            return `Response: ${data?.message}`;
+          }}
+          onPress={(cache) => {
+            cache.updateCache('GET /items', { filter: '' }, () => ({
+              message: 'Samwise Gamgee',
+            }));
+          }}
+        />
+      ));
+
+      await screen.findByText('Response: Frodo Baggins');
+
+      expect(client.request).toHaveBeenCalledTimes(1);
+
+      TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+
+      // The update does not happen immediately.
+      await TestingLibrary.waitFor(() => {
+        expect(screen.getByTestId('render-data').textContent).toStrictEqual(
+          'Response: Samwise Gamgee',
+        );
+      });
+
+      expect(client.request).toHaveBeenCalledTimes(1);
+    });
+
+    it('supports mutating the current value when using a function', async () => {
+      network.mock('GET /items', {
+        status: 200,
+        data: { message: 'Frodo Baggins' },
+      });
+
+      const screen = render(() => (
+        <TestComponent
+          getRenderData={() => {
+            const { data } = useQuery('GET /items', { filter: '' });
+            return `Response: ${data?.message}`;
+          }}
+          onPress={(cache) => {
+            cache.updateCache('GET /items', { filter: '' }, (current) => {
+              current.message = 'Samwise Gamgee';
+            });
+          }}
+        />
+      ));
+
+      await screen.findByText('Response: Frodo Baggins');
+
+      expect(client.request).toHaveBeenCalledTimes(1);
+
+      TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+
+      // The update does not happen immediately.
+      await TestingLibrary.waitFor(() => {
+        expect(screen.getByTestId('render-data').textContent).toStrictEqual(
+          'Response: Samwise Gamgee',
+        );
+      });
+
+      expect(client.request).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when a function update is passed, but there is no data', async () => {
+      const updateFn = jest.fn();
+      const screen = render(() => (
+        <TestComponent
+          getRenderData={() => {
+            return 'Response: nothing';
+          }}
+          onPress={(cache) => {
+            cache.updateCache('GET /items', { filter: '' }, updateFn);
+          }}
+        />
+      ));
+
+      await screen.findByText('Response: nothing');
+
+      expect(client.request).toHaveBeenCalledTimes(0);
+
+      TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+
+      expect(client.request).toHaveBeenCalledTimes(0);
+
+      expect(updateFn).not.toHaveBeenCalled();
+    });
+  });
 });

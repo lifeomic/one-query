@@ -44,6 +44,7 @@
     "uuid": "^9.0.0"
   },
   "dependencies": {
+    "immer": "^9.0.15",
     "lodash": "^4.17.21"
   }
 }
