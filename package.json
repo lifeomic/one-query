@@ -14,10 +14,15 @@
     "test": "jest",
     "build": "node build.js"
   },
+  "peerDependencies": {
+    "axios": "*"
+  },
   "devDependencies": {
     "@lifeomic/eslint-config-standards": "^3.0.1",
     "@lifeomic/typescript-config": "^2.0.0",
     "@types/jest": "^29.2.0",
+    "@types/uuid": "^8.3.4",
+    "axios": "^1.1.3",
     "conventional-changelog-conventionalcommits": "^5.0.0",
     "eslint": "^8.25.0",
     "eslint-config-prettier": "^8.5.0",
@@ -26,6 +31,7 @@
     "prettier": "^2.7.1",
     "semantic-release": "^19.0.5",
     "ts-jest": "^29.0.3",
-    "typescript": "^4.8.4"
+    "typescript": "^4.8.4",
+    "uuid": "^9.0.0"
   }
 }
