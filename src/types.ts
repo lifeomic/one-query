@@ -63,6 +63,23 @@ export type CombinedRouteTuples<
       ];
 };
 
+export type EndpointInvalidationPredicate<Payload> =
+  | 'all'
+  | Payload[]
+  | ((payload: Payload) => boolean);
+
+export type EndpointInvalidationMap<Endpoints extends RoughEndpoints> = {
+  [Route in keyof Endpoints]?: EndpointInvalidationPredicate<
+    RequestPayloadOf<Endpoints, Route>
+  >;
+};
+
+export type CacheUtils<Endpoints extends RoughEndpoints> = {
+  invalidateQueries: (spec: EndpointInvalidationMap<Endpoints>) => void;
+
+  resetQueries: (spec: EndpointInvalidationMap<Endpoints>) => void;
+};
+
 export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
   useQuery: <Route extends keyof Endpoints & string>(
     route: Route,
@@ -90,4 +107,6 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
       Endpoints[Routes[Index]]['Response']
     >;
   }>;
+
+  useCache(): CacheUtils<Endpoints>;
 };

@@ -1,10 +1,12 @@
 import * as React from 'react';
 import * as TestingLibrary from '@testing-library/react';
+import { useQuery as useReactQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { createAPIHooks } from './hooks';
 import { createAPIMockingUtility } from './test-utils';
 import { APIClient } from './util';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { CacheUtils, EndpointInvalidationMap, RequestPayloadOf } from './types';
 
 type TestEndpoints = {
   'GET /items': {
@@ -25,29 +27,34 @@ type TestEndpoints = {
   };
 };
 
-const { useQuery, useMutation, useCombinedQueries } = createAPIHooks({
+const client = new APIClient<TestEndpoints>(
+  axios.create({ baseURL: 'https://www.lifeomic.com' }),
+);
+
+jest.spyOn(client, 'request');
+
+const { useQuery, useMutation, useCombinedQueries, useCache } = createAPIHooks({
   name: 'test-name',
-  client: new APIClient<TestEndpoints>(
-    axios.create({ baseURL: 'https://www.lifeomic.com' }),
-  ),
+  client,
 });
 
 const network = createAPIMockingUtility<TestEndpoints>({
   baseUrl: 'https://www.lifeomic.com',
 })();
 
-const client = new QueryClient({
+const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: Infinity, retry: false } },
 });
 
 beforeEach(() => {
-  client.clear();
+  jest.mocked(client.request).mockClear();
+  queryClient.clear();
 });
 
 const render = (Component: React.FC) =>
   TestingLibrary.render(<Component />, {
     wrapper: ({ children }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     ),
   });
 
@@ -234,6 +241,279 @@ describe('useCombinedQueries', () => {
           ],
         }),
       );
+    });
+  });
+});
+
+describe('useCache', () => {
+  describe('invalidation', () => {
+    beforeEach(() => {
+      // Mock a bunch of different requests to help us confirm render count.
+      network.mockOrdered('GET /items/:id', [
+        { status: 200, data: { message: '1' } },
+        { status: 200, data: { message: '2' } },
+        { status: 200, data: { message: '3' } },
+      ]);
+    });
+
+    (['resetQueries', 'invalidateQueries'] as const).forEach((method) => {
+      describe(`${method}`, () => {
+        type TestComponentProps = {
+          getRenderData: () => string;
+
+          onPress: (
+            invalidate: CacheUtils<TestEndpoints>[typeof method],
+          ) => void;
+        };
+
+        const TestComponent: React.FC<TestComponentProps> = ({
+          getRenderData,
+          onPress,
+        }) => {
+          const cache = useCache();
+          const data = getRenderData();
+          return (
+            <>
+              <button
+                data-testid="invalidate-button"
+                onClick={() => onPress(cache[method])}
+              >
+                Invalidate
+              </button>
+              <div data-testid="text">{data}</div>
+            </>
+          );
+        };
+
+        it('invalidates matching queries based on static match', async () => {
+          const variables: RequestPayloadOf<TestEndpoints, 'GET /items/:id'> = {
+            id: 'some-id',
+            filter: 'some-filter',
+          };
+
+          const screen = render(() => (
+            <TestComponent
+              getRenderData={() => {
+                const { data } = useQuery('GET /items/:id', variables, {
+                  cacheTime: Infinity,
+                });
+
+                return `Response: ${data?.message || 'undefined'}`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /items/:id': [variables],
+                });
+              }}
+            />
+          ));
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 1',
+            );
+          });
+
+          expect(client.request).toHaveBeenCalledTimes(1);
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 2',
+            );
+            expect(client.request).toHaveBeenCalledTimes(2);
+          });
+        });
+
+        it('invalidates matching queries based on predicate match', async () => {
+          const screen = render(() => (
+            <TestComponent
+              getRenderData={() => {
+                const { data } = useQuery(
+                  'GET /items/:id',
+                  { id: 'some-id', filter: 'some-filter' },
+                  { cacheTime: Infinity },
+                );
+
+                return `Response: ${data?.message || 'undefined'}`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /items/:id': (variables) =>
+                    variables.filter === 'some-filter',
+                });
+              }}
+            />
+          ));
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 1',
+            );
+          });
+
+          expect(client.request).toHaveBeenCalledTimes(1);
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 2',
+            );
+            expect(client.request).toHaveBeenCalledTimes(2);
+          });
+        });
+
+        it('invalidates all queries when "all" is used', async () => {
+          network.reset();
+          network.mockOrdered('GET /items/:id', [
+            { status: 200, data: { message: '1' } },
+            { status: 200, data: { message: '1' } },
+            { status: 200, data: { message: '2' } },
+            { status: 200, data: { message: '2' } },
+          ]);
+          const screen = render(() => (
+            <TestComponent
+              getRenderData={() => {
+                const first = useQuery(
+                  'GET /items/:id',
+                  { id: 'some-id', filter: 'some-filter' },
+                  { cacheTime: Infinity },
+                );
+
+                const second = useQuery(
+                  'GET /items/:id',
+                  { id: 'some-other-id', filter: 'some-other-filter' },
+                  { cacheTime: Infinity },
+                );
+
+                return `Responses: ${first.data?.message || 'undefined'} ${
+                  second.data?.message || 'undefined'
+                }`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /items/:id': 'all',
+                });
+              }}
+            />
+          ));
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Responses: 1 1',
+            );
+          });
+
+          expect(client.request).toHaveBeenCalledTimes(2);
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Responses: 2 2',
+            );
+            expect(client.request).toHaveBeenCalledTimes(4);
+          });
+        });
+
+        const wait = (ms: number) =>
+          new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+        const NON_INVALIDATION_SCENARIOS: {
+          it: string;
+          invalidate: EndpointInvalidationMap<TestEndpoints>;
+          getRenderData?: () => string;
+        }[] = [
+          {
+            it: 'does not invalidate queries that do not match static config',
+            invalidate: {
+              'GET /items/:id': [
+                { id: 'some-other-id', filter: 'some-other-filter' },
+              ],
+            },
+          },
+          {
+            it: 'does not invalidate queries that do not match predicate config',
+            invalidate: {
+              'GET /items/:id': (variables) =>
+                variables.filter === 'some-other-filter',
+            },
+          },
+          {
+            it: 'does not invalidate query if the endpoint is not specified',
+            invalidate: {},
+          },
+          {
+            it: 'does not invalidate queries that were not created by the shared hooks',
+            invalidate: {},
+            getRenderData: () => {
+              const { data } = useReactQuery(['some-other-key'], () =>
+                client.request('GET /items/:id', {
+                  id: 'some-id',
+                  filter: 'some-filter',
+                }),
+              );
+
+              return `Response: ${data?.data.message || 'undefined'}`;
+            },
+          },
+        ];
+
+        NON_INVALIDATION_SCENARIOS.forEach(
+          ({ it: name, invalidate: spec, getRenderData }) => {
+            it(`${name}`, async () => {
+              const screen = render(() => (
+                <TestComponent
+                  getRenderData={
+                    getRenderData ??
+                    (() => {
+                      const { data } = useQuery(
+                        'GET /items/:id',
+                        { id: 'some-id', filter: 'some-filter' },
+                        { cacheTime: Infinity },
+                      );
+
+                      return `Response: ${data?.message || 'undefined'}`;
+                    })
+                  }
+                  onPress={(invalidate) => {
+                    invalidate(spec);
+                  }}
+                />
+              ));
+
+              await TestingLibrary.waitFor(() => {
+                expect(screen.getByTestId('text').textContent).toStrictEqual(
+                  'Response: 1',
+                );
+              });
+
+              expect(client.request).toHaveBeenCalledTimes(1);
+
+              TestingLibrary.fireEvent.click(
+                screen.getByTestId('invalidate-button'),
+              );
+
+              await wait(150);
+
+              // Assert response unchanged.
+              expect(screen.getByTestId('text').textContent).toStrictEqual(
+                'Response: 1',
+              );
+              // Assert no additional queries.
+              expect(client.request).toHaveBeenCalledTimes(1);
+            });
+          },
+        );
+      });
     });
   });
 });
