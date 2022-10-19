@@ -24,6 +24,7 @@
     "@tanstack/react-query": "^4.12.0",
     "@testing-library/react": "^13.4.0",
     "@types/jest": "^29.2.0",
+    "@types/lodash": "^4.14.186",
     "@types/react": "^18.0.21",
     "@types/uuid": "^8.3.4",
     "axios": "^0.27.2",
@@ -41,5 +42,8 @@
     "ts-jest": "^29.0.3",
     "typescript": "^4.8.4",
     "uuid": "^9.0.0"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
   }
 }
