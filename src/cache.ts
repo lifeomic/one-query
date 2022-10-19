@@ -1,8 +1,14 @@
 import { QueryClient, QueryFilters } from '@tanstack/react-query';
 // eslint-disable-next-line no-restricted-imports
 import { isEqual } from 'lodash';
-import { CacheUtils, EndpointInvalidationMap, RoughEndpoints } from './types';
-import { isInternalQueryKey } from './util';
+import { produce } from 'immer';
+import {
+  CacheUtils,
+  EndpointInvalidationMap,
+  RequestPayloadOf,
+  RoughEndpoints,
+} from './types';
+import { InternalQueryKey, isInternalQueryKey } from './util';
 
 const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
   endpoints: EndpointInvalidationMap<Endpoints>,
@@ -38,6 +44,10 @@ const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
 
 export const createCacheUtils = <Endpoints extends RoughEndpoints>(
   client: QueryClient,
+  makeQueryKey: <Route extends keyof Endpoints & string>(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+  ) => InternalQueryKey,
 ): CacheUtils<Endpoints> => {
   return {
     invalidateQueries: (spec) => {
@@ -45,6 +55,24 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
     },
     resetQueries: (spec) => {
       void client.resetQueries(createQueryFilterFromSpec(spec));
+    },
+    updateCache: (route, payload, updater) => {
+      client.setQueryData<Endpoints[typeof route]['Response']>(
+        [makeQueryKey(route, payload)],
+        typeof updater !== 'function'
+          ? updater
+          : (current) => {
+              if (current === undefined) {
+                return;
+              }
+              return produce(
+                current,
+                // @ts-expect-error TypeScript incorrectly thinks that `updater`
+                // still might not be a function. It is wrong.
+                updater,
+              );
+            },
+      );
     },
   };
 };

@@ -74,10 +74,18 @@ export type EndpointInvalidationMap<Endpoints extends RoughEndpoints> = {
   >;
 };
 
+export type CacheUpdate<Data> = Data | ((current: Data) => Data | void);
+
 export type CacheUtils<Endpoints extends RoughEndpoints> = {
   invalidateQueries: (spec: EndpointInvalidationMap<Endpoints>) => void;
 
   resetQueries: (spec: EndpointInvalidationMap<Endpoints>) => void;
+
+  updateCache: <Route extends keyof Endpoints & string>(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+    updater: CacheUpdate<Endpoints[Route]['Response']>,
+  ) => void;
 };
 
 export type APIQueryHooks<Endpoints extends RoughEndpoints> = {

@@ -51,7 +51,9 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
     },
     useCache: () => {
       const client = useQueryClient();
-      return createCacheUtils(client);
+      return createCacheUtils(client, (route, payload) =>
+        createQueryKey(name, route, payload),
+      );
     },
   };
 };
