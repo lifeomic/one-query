@@ -189,6 +189,8 @@ return (
 
 A helper for combining multiple parallel queries into a single `react-query`-like hook.
 
+Queries performed using this hook are cached independently, just as if they had been performed individually using `useQuery`.
+
 ```typescript
 const query = useCombinedQueries(
   ['GET /messages', { filter: 'some-filter' }],
@@ -205,6 +207,8 @@ if (query.isLoading) {
   return;
 }
 
+// Now, we know that all queries are complete.
+
 query.data; // [Message[], Message]
 
 const [list, message] = query.data;
@@ -212,8 +216,6 @@ const [list, message] = query.data;
 list; // Message[]
 message; // Message
 ```
-
-Queries performed using this hook are cached independently, just as if they had been performed individually using `useQuery`.
 
 #### `isFetching`
 
