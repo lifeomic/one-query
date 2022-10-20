@@ -8,7 +8,7 @@ yarn add @lifeomic/one-query
 
 ## Setup
 
-1. Define the input + output types for your API endpoints. Use a single type to define every endpoint.
+1. Define the input + output types for your API endpoints. Use a single type to define the entire set of endpoints.
 
 ```typescript
 // endpoints.ts
@@ -146,6 +146,8 @@ const query = useQuery(
 The return value of this hook is identical to the behavior of the `react-query` `useQuery` hook's return value.
 
 ```typescript
+const query = useQuery('GET /messages', { filter: 'some-filter' });
+
 query.data; // Message[] | undefined
 
 if (query.isLoading) {
@@ -162,15 +164,13 @@ Queries are cached using a combination of `route name + payload`. So, in the exa
 
 ### `useMutation`
 
-Type-safe wrapper around `useQuery` from `react-query`.
-
-```typescript
-const mutation = useMutation('PUT /messages/:id');
-```
+Type-safe wrapper around `useMutation` from `react-query`.
 
 The return value of this hook is identical to the behavior of the `react-query` `useMutation` hook's return value. The `mutate` and `mutateAsync` values are typed correctly using the endpoint definition
 
 ```tsx
+const mutation = useMutation('PUT /messages/:id');
+
 return (
   <button
     onClick={() => {
