@@ -4,7 +4,6 @@ import { useQuery as useReactQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { createAPIHooks } from './hooks';
 import { createAPIMockingUtility } from './test-utils';
-import { APIClient } from './util';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CacheUtils, EndpointInvalidationMap, RequestPayloadOf } from './types';
 
@@ -27,16 +26,15 @@ type TestEndpoints = {
   };
 };
 
-const client = new APIClient<TestEndpoints>(
-  axios.create({ baseURL: 'https://www.lifeomic.com' }),
-);
+const client = axios.create({ baseURL: 'https://www.lifeomic.com' });
 
 jest.spyOn(client, 'request');
 
-const { useQuery, useMutation, useCombinedQueries, useCache } = createAPIHooks({
-  name: 'test-name',
-  client,
-});
+const { useQuery, useMutation, useCombinedQueries, useCache } =
+  createAPIHooks<TestEndpoints>({
+    name: 'test-name',
+    client,
+  });
 
 const network = createAPIMockingUtility<TestEndpoints>({
   baseUrl: 'https://www.lifeomic.com',
@@ -456,9 +454,10 @@ describe('useCache', () => {
             invalidate: {},
             getRenderData: () => {
               const { data } = useReactQuery(['some-other-key'], () =>
-                client.request('GET /items/:id', {
-                  id: 'some-id',
-                  filter: 'some-filter',
+                client.request({
+                  method: 'GET',
+                  url: '/items/some-id',
+                  params: { filter: 'some-filter' },
                 }),
               );
 
