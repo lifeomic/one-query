@@ -30,7 +30,7 @@ const client = axios.create({ baseURL: 'https://www.lifeomic.com' });
 
 jest.spyOn(client, 'request');
 
-const { useQuery, useMutation, useCombinedQueries, useCache } =
+const { useAPIQuery, useAPIMutation, useCombinedAPIQueries, useAPICache } =
   createAPIHooks<TestEndpoints>({
     name: 'test-name',
     client,
@@ -56,7 +56,7 @@ const render = (Component: React.FC) =>
     ),
   });
 
-describe('useQuery', () => {
+describe('useAPIQuery', () => {
   test('works correctly', async () => {
     network.mock('GET /items', {
       status: 200,
@@ -64,7 +64,7 @@ describe('useQuery', () => {
     });
 
     const screen = render(() => {
-      const query = useQuery('GET /items', { filter: 'test-filter' });
+      const query = useAPIQuery('GET /items', { filter: 'test-filter' });
       return <div data-testid="content">{query.data?.message || ''}</div>;
     });
 
@@ -76,7 +76,7 @@ describe('useQuery', () => {
   });
 });
 
-describe('useMutation', () => {
+describe('useAPIMutation', () => {
   test('works correctly', async () => {
     const networkPost = jest.fn().mockReturnValue({
       status: 200,
@@ -85,7 +85,7 @@ describe('useMutation', () => {
     network.mock('POST /items', networkPost);
 
     const screen = render(() => {
-      const mutation = useMutation('POST /items');
+      const mutation = useAPIMutation('POST /items');
       return (
         <button
           onClick={() => {
@@ -110,7 +110,7 @@ describe('useMutation', () => {
   });
 });
 
-describe('useCombinedQueries', () => {
+describe('useCombinedAPIQueries', () => {
   beforeEach(() => {
     network
       .mock('GET /items', { status: 200, data: { message: 'get response' } })
@@ -124,7 +124,7 @@ describe('useCombinedQueries', () => {
   const setup = () => {
     const onRender = jest.fn();
     const screen = render(() => {
-      const query = useCombinedQueries(
+      const query = useCombinedAPIQueries(
         ['GET /items', { filter: '' }],
         ['POST /items', { message: '' }],
         ['GET /items/:id', { filter: '', id: 'test-id' }],
@@ -243,7 +243,7 @@ describe('useCombinedQueries', () => {
   });
 });
 
-describe('useCache', () => {
+describe('useAPICache', () => {
   describe('invalidation', () => {
     beforeEach(() => {
       // Mock a bunch of different requests to help us confirm render count.
@@ -268,7 +268,7 @@ describe('useCache', () => {
           getRenderData,
           onPress,
         }) => {
-          const cache = useCache();
+          const cache = useAPICache();
           const data = getRenderData();
           return (
             <>
@@ -292,7 +292,7 @@ describe('useCache', () => {
           const screen = render(() => (
             <TestComponent
               getRenderData={() => {
-                const { data } = useQuery('GET /items/:id', variables, {
+                const { data } = useAPIQuery('GET /items/:id', variables, {
                   cacheTime: Infinity,
                 });
 
@@ -330,7 +330,7 @@ describe('useCache', () => {
           const screen = render(() => (
             <TestComponent
               getRenderData={() => {
-                const { data } = useQuery(
+                const { data } = useAPIQuery(
                   'GET /items/:id',
                   { id: 'some-id', filter: 'some-filter' },
                   { cacheTime: Infinity },
@@ -378,13 +378,13 @@ describe('useCache', () => {
           const screen = render(() => (
             <TestComponent
               getRenderData={() => {
-                const first = useQuery(
+                const first = useAPIQuery(
                   'GET /items/:id',
                   { id: 'some-id', filter: 'some-filter' },
                   { cacheTime: Infinity },
                 );
 
-                const second = useQuery(
+                const second = useAPIQuery(
                   'GET /items/:id',
                   { id: 'some-other-id', filter: 'some-other-filter' },
                   { cacheTime: Infinity },
@@ -474,7 +474,7 @@ describe('useCache', () => {
                   getRenderData={
                     getRenderData ??
                     (() => {
-                      const { data } = useQuery(
+                      const { data } = useAPIQuery(
                         'GET /items/:id',
                         { id: 'some-id', filter: 'some-filter' },
                         { cacheTime: Infinity },
@@ -521,7 +521,7 @@ describe('useCache', () => {
       getRenderData: () => string;
       onPress: (cache: CacheUtils<TestEndpoints>) => void;
     }> = ({ getRenderData, onPress }) => {
-      const cache = useCache();
+      const cache = useAPICache();
       const data = getRenderData();
       return (
         <>
@@ -542,7 +542,7 @@ describe('useCache', () => {
       const screen = render(() => (
         <TestComponent
           getRenderData={() => {
-            const { data } = useQuery('GET /items', { filter: '' });
+            const { data } = useAPIQuery('GET /items', { filter: '' });
             return `Response: ${data?.message}`;
           }}
           onPress={(cache) => {
@@ -577,7 +577,7 @@ describe('useCache', () => {
       const screen = render(() => (
         <TestComponent
           getRenderData={() => {
-            const { data } = useQuery('GET /items', { filter: '' });
+            const { data } = useAPIQuery('GET /items', { filter: '' });
             return `Response: ${data?.message}`;
           }}
           onPress={(cache) => {
@@ -613,7 +613,7 @@ describe('useCache', () => {
       const screen = render(() => (
         <TestComponent
           getRenderData={() => {
-            const { data } = useQuery('GET /items', { filter: '' });
+            const { data } = useAPIQuery('GET /items', { filter: '' });
             return `Response: ${data?.message}`;
           }}
           onPress={(cache) => {

@@ -47,10 +47,10 @@ const hooks = createAPIHooks<APIEndpoints>({ // <-- Specify your custom type her
 });
 
 export const {
-  useQuery,
-  useMutation
-  useCombinedQueries,
-  useCache
+  useAPIQuery,
+  useAPIMutation
+  useCombinedAPIQueries,
+  useAPICache
 } = hooks;
 ```
 
@@ -58,12 +58,12 @@ export const {
 
 ```jsx
 // MyComponent.ts
-import { useQuery } from './api-hooks';
+import { useAPIQuery } from './api-hooks';
 
 const MyComponent = () => {
-  const query = useQuery('GET /messages', { filter: '...' });
+  const query = useAPIQuery('GET /messages', { filter: '...' });
 
-  const mutation = useMutation('PUT /messages/:id');
+  const mutation = useAPIMutation('PUT /messages/:id');
 
   const messages = query.data?.map(m => m.content).join(',');
 
@@ -168,18 +168,18 @@ const hooks = createAPIHooks<APIEndpoints>({ // <-- Specify your custom endpoint
 // `hooks` provides all the hooks you need. We recommend exporting these values from a
 // centralized file in your app.
 export const {
-  useQuery,
-  useMutation,
+  useAPIQuery,
+  useAPIMutation,
   ...
 } = hooks;
 ```
 
-### `useQuery`
+### `useAPIQuery`
 
 Type-safe wrapper around `useQuery` from `react-query`.
 
 ```typescript
-const query = useQuery(
+const query = useAPIQuery(
   // First, specify the route.
   'GET /messages',
   // Then, specify the payload.
@@ -204,12 +204,12 @@ query.data; // Message[]
 
 Queries are cached using a combination of `route name + payload`. So, in the example above, the query key looks roughly like `['GET /messages', { filter: 'some-filter' }]`.
 
-### `useMutation`
+### `useAPIMutation`
 
 Type-safe wrapper around `useQuery` from `react-query`.
 
 ```typescript
-const mutation = useMutation('PUT /messages/:id');
+const mutation = useAPIQuery('PUT /messages/:id');
 ```
 
 The return value of this hook is identical to the behavior of the `react-query` `useMutation` hook's return value. The `mutate` and `mutateAsync` values are typed correctly using the endpoint definition
@@ -229,12 +229,12 @@ return (
 );
 ```
 
-### `useCombinedQueries`
+### `useCombinedAPIQueries`
 
 A helper for combining multiple parallel queries into a single `react-query`-like hook.
 
 ```typescript
-const query = useCombinedQueries(
+const query = useCombinedAPIQueries(
   ['GET /messages', { filter: 'some-filter' }],
   ['GET /messages/:id', { id: 'some-message-id' }],
 );
@@ -257,7 +257,7 @@ list; // Message[]
 message; // Message
 ```
 
-Queries performed using this hook are cached independently, just as if they had been performed individually using `useQuery`.
+Queries performed using this hook are cached independently, just as if they had been performed individually using `useAPIQuery`.
 
 #### `isFetching`
 
@@ -280,7 +280,7 @@ Indicates whether _at least one_ query is in the "error" state.
 A helper function for triggering a refetch of every independent query in the combination.
 
 ```typescript
-const query = useCombinedQueries(
+const query = useCombinedAPIQueries(
   ['GET /messages', { filter: 'some-filter' }],
   ['GET /messages/:id', { id: 'some-message-id' }],
 );
@@ -299,7 +299,7 @@ for (const individualQuery of queries) {
 Provides access to the individual underlying queries.
 
 ```typescript
-const query = useCombinedQueries(
+const query = useCombinedAPIQueries(
   ['GET /messages', { filter: 'some-filter' }],
   ['GET /messages/:id', { id: 'some-message-id' }],
 );
@@ -308,7 +308,7 @@ query.queries[0].data; // Messages[] | undefined
 query.queries[1].data; // Message | undefined
 ```
 
-### `useCache`
+### `useAPICache`
 
 This hook provides several utilities for doing well-typed cache invalidation + cache updates for queries.
 
@@ -317,7 +317,7 @@ This hook provides several utilities for doing well-typed cache invalidation + c
 Performs invalidaton of queries using `react-query`'s [`invalidateQueries`](https://tanstack.com/query/v4/docs/reference/QueryClient#queryclientinvalidatequeries).
 
 ```typescript
-const cache = useCache();
+const cache = useAPICache();
 
 // Invalidates _all_ queries targeting the "GET /messages" route,
 // regardless of payload.
@@ -358,7 +358,7 @@ Resets queries using `react-query`'s [`resetQueries`](https://tanstack.com/query
 The API is identical to `invalidateQueries`.
 
 ```typescript
-const cache = useCache();
+const cache = useAPICache();
 
 cache.resetQueries({
   'GET /messages': 'all',
@@ -370,7 +370,7 @@ cache.resetQueries({
 Performs surgical, well-typed updates to cached queries.
 
 ```typescript
-const cache = useCache();
+const cache = useAPICache();
 
 cache.updateCache(
   // Specify the route + payload that you'd like to update the cached value for.
