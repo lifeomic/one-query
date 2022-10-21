@@ -412,7 +412,7 @@ cache.updateCache(
 
 `one-query` also provides a testing utility for doing type-safe mocking of API endpoints in tests. This utility is powered by [`msw`](https://github.com/mswjs/msw).
 
-### `createAPIMockingUtility`
+### `createAPIMockingUtility(...)`
 
 If you're using [`jest`](https://jestjs.io/) for testing, use `createAPIMockingUtility` to create a shareable utility for mocking network calls.
 
@@ -421,11 +421,20 @@ If you're using [`jest`](https://jestjs.io/) for testing, use `createAPIMockingU
 export const useAPIMocking = createAPIMockingUtility<APIEndpoints>({
   baseUrl: 'https://my.api.com',
 });
+
+// another-file.ts
+const api = useAPIMocking();
+
+// now, any mocks applied during tests will be automatically cleaned up + cleared
+// before each test
+test('something', () => {
+  api.mock(...)
+});
 ```
 
 ### `mock(route, mocker)`
 
-Mocks the specified route with the specified mocker _persistently_.
+Mocks the specified route with the specified mocker _persistently_. The provided mock response will be used indefinitely until it is removed or replaced.
 
 ```typescript
 const api = useAPIMocking();
