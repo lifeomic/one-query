@@ -5,20 +5,22 @@ import {
   useQueries,
   useQueryClient,
 } from '@tanstack/react-query';
+import { AxiosInstance } from 'axios';
 import { createCacheUtils } from './cache';
 import { combineQueries } from './combination';
 import { APIQueryHooks, RoughEndpoints } from './types';
 import { APIClient, createQueryKey } from './util';
 
-export type CreateAPIQueryHooksOptions<Endpoints extends RoughEndpoints> = {
+export type CreateAPIQueryHooksOptions = {
   name: string;
-  client: APIClient<Endpoints>;
+  client: AxiosInstance;
 };
 
 export const createAPIHooks = <Endpoints extends RoughEndpoints>({
   name,
-  client,
-}: CreateAPIQueryHooksOptions<Endpoints>): APIQueryHooks<Endpoints> => {
+  client: axiosClient,
+}: CreateAPIQueryHooksOptions): APIQueryHooks<Endpoints> => {
+  const client = new APIClient<Endpoints>(axiosClient);
   return {
     useQuery: (route, payload, options) => {
       const queryKey: QueryKey = [createQueryKey(name, route, payload)];
