@@ -56,25 +56,69 @@ export const {
 
 3. Use your hooks. Enjoy auto-completed route names, type-safe inputs, inferred path parameters, and more.
 
-```tsx
+```jsx
+// MyComponent.ts
+import { useQuery } from './api-hooks';
+
 const MyComponent = () => {
   const query = useQuery('GET /messages', { filter: '...' });
 
   const mutation = useMutation('PUT /messages/:id');
 
+  const messages = query.data?.map(m => m.content).join(',');
+
   return (
-    <button
-      onClick={() => {
-        mutation.mutate({
-          id: 'new-message-id',
-          content: 'some message content',
-        });
-      }}
-    >
-      Mutate
-    </button>
+    <>
+      <div>{messages}<div>
+      <button
+        onClick={() => {
+          mutation.mutate({
+            id: 'new-message-id',
+            content: 'some message content',
+          });
+        }}
+      >
+        Mutate
+      </button>
+    </>
   );
 };
+```
+
+4. (optional) Use `createAPIMockingUtility` to create a type-safe network mocking utility for use in unit tests.
+
+```typescript
+// api-mocking.ts
+import { createAPIMockingUtility } from '@lifeomic/one-query/test-utils';
+import { APIEndpoints } from './endpoints';
+
+export const useAPIMocking = createAPIMockingUtility<APIEndpoints>({
+  baseUrl: 'https://my.api.com',
+});
+```
+
+Now, use the created utility in your tests to mock the network:
+
+```jsx
+// MyComponent.test.ts
+import { render } from '@testing-library/react';
+import { useAPIMocking } from './api-mocking';
+
+const api = useAPIMocking();
+
+it('renders messages', () => {
+  api.mock('GET /messages', {
+    status: 200,
+    data: [
+      { id: '1', content: 'one' },
+      { id: '1', content: 'two' },
+    ],
+  });
+
+  const view = render(<MyComponent />);
+
+  await view.findByText('one, two')
+});
 ```
 
 ## Hooks API Reference
@@ -363,3 +407,116 @@ cache.updateCache(
 ```
 
 **Note**: if performing a programmatic update, _no update will occur_ if there is not a cached value.
+
+## Test Utility API Reference
+
+`one-query` also provides a testing utility for doing type-safe mocking of API endpoints in tests. This utility is powered by [`msw`](https://github.com/mswjs/msw).
+
+### `createAPIMockingUtility`
+
+If you're using [`jest`](https://jestjs.io/) for testing, use `createAPIMockingUtility` to create a shareable utility for mocking network calls.
+
+```typescript
+// Specify your custom "APIEndpoints" type as the generic parameter here.
+export const useAPIMocking = createAPIMockingUtility<APIEndpoints>({
+  baseUrl: 'https://my.api.com',
+});
+```
+
+### `mock(route, mocker)`
+
+Mocks the specified route with the specified mocker _persistently_.
+
+```typescript
+const api = useAPIMocking();
+
+api.mock(
+  // First, specify the route name.
+  'GET /messages',
+  // Then specify a static response.
+  {
+    status: 200,
+    data: [
+      { id: '1', content: 'one' },
+      { id: '2', content: 'two' },
+    ],
+  },
+);
+
+// The mock is persistent -- multiple call will receive the same result:
+await axios.get('/messages');
+// [{ id: '1', ...}, { id: '2', ... }]
+await axios.get('/messages');
+// [{ id: '1', ...}, { id: '2', ... }]
+
+// A function can also be used to respond programmatically:
+api.mock('GET /messages', (req) => ({
+  status: 200,
+  data:
+    req.query.filter === 'some-filter'
+      ? [{ id: '1', content: 'one' }]
+      : [
+          { id: '1', content: 'one' },
+          { id: '2', content: 'two' },
+        ],
+}));
+
+await axios.get('/messages');
+// [{ id: '1', ...}, { id: '2', ... }]
+await axios.get('/messages?filter=some-filter');
+// [{ id: '1', ...}]
+```
+
+The function-style mocking can also be useful for making specific assertions about network calls.
+
+```typescript
+const getMessages = jest.fn();
+api.mock(
+  'GET /messages',
+  getMessages.mockReturnValue({
+    status: 200,
+    data: [],
+  }),
+);
+
+await axios.get('/messages?filter=some-filter');
+
+expect(getMessages).toHaveBeenCalledTimes(1);
+expect(getMessages).toHaveBeenCalledWith(
+  expect.objectContaining({
+    query: 'some-filter',
+  }),
+);
+```
+
+### `mockOrdered(route, responses)`
+
+Mocks a series of ordered responses from the specified route.
+
+```typescript
+const api = useAPIMocking();
+
+api.mockOrdered('GET /messages', [
+  { status: 200, data: [] },
+  { status: 200, data: [{ id: '1', content: 'one' }] },
+  {
+    status: 200,
+    data: [
+      { id: '1', content: 'one' },
+      { id: '2', content: 'two' },
+    ],
+  },
+]);
+
+await client.get('/messages');
+// []
+
+await client.get('/messages');
+// [{ id: '1', content: 'one' }]
+
+await client.get('/messages');
+// [{ id: '1', content: 'one' }, { id: '2', content: 'two' }]
+
+await client.get('/messages');
+// This request will *not* be mocked.
+```
