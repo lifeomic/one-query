@@ -22,7 +22,7 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
 }: CreateAPIQueryHooksOptions): APIQueryHooks<Endpoints> => {
   const client = new APIClient<Endpoints>(axiosClient);
   return {
-    useQuery: (route, payload, options) => {
+    useAPIQuery: (route, payload, options) => {
       const queryKey: QueryKey = [createQueryKey(name, route, payload)];
       return useQuery(
         queryKey,
@@ -30,12 +30,12 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
         options,
       );
     },
-    useMutation: (route, options) =>
+    useAPIMutation: (route, options) =>
       useMutation(
         (payload) => client.request(route, payload).then((res) => res.data),
         options,
       ),
-    useCombinedQueries: (...routes) => {
+    useCombinedAPIQueries: (...routes) => {
       const queries = useQueries({
         queries: routes.map(([endpoint, payload, options]) => ({
           ...options,
@@ -51,7 +51,7 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       return combineQueries(queries as any);
     },
-    useCache: () => {
+    useAPICache: () => {
       const client = useQueryClient();
       return createCacheUtils(client, (route, payload) =>
         createQueryKey(name, route, payload),

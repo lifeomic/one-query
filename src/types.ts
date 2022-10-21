@@ -89,13 +89,13 @@ export type CacheUtils<Endpoints extends RoughEndpoints> = {
 };
 
 export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
-  useQuery: <Route extends keyof Endpoints & string>(
+  useAPIQuery: <Route extends keyof Endpoints & string>(
     route: Route,
     payload: RequestPayloadOf<Endpoints, Route>,
     options?: RestrictedUseQueryOptions<Endpoints[Route]['Response']>,
   ) => UseQueryResult<Endpoints[Route]['Response']>;
 
-  useMutation: <Route extends keyof Endpoints & string>(
+  useAPIMutation: <Route extends keyof Endpoints & string>(
     route: Route,
     options?: UseMutationOptions<
       Endpoints[Route]['Response'],
@@ -108,7 +108,7 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
     RequestPayloadOf<Endpoints, Route>
   >;
 
-  useCombinedQueries<Routes extends (keyof Endpoints & string)[]>(
+  useCombinedAPIQueries<Routes extends (keyof Endpoints & string)[]>(
     ...routes: [...CombinedRouteTuples<Endpoints, Routes>]
   ): CombinedQueriesResult<{
     [Index in keyof Routes]: QueryObserverResult<
@@ -116,5 +116,5 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
     >;
   }>;
 
-  useCache(): CacheUtils<Endpoints>;
+  useAPICache(): CacheUtils<Endpoints>;
 };
