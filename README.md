@@ -8,7 +8,7 @@ yarn add @lifeomic/one-query
 
 ## Setup
 
-1. Define the input + output types for your API endpoints. Use a single type to define every endpoint.
+1. Define the input + output types for your API endpoints. Use a single type to define the entire set of endpoints.
 
 ```typescript
 // endpoints.ts
@@ -156,7 +156,9 @@ Well-typed hooks should first be created using the `createAPIHooks` helper.
 ```typescript
 import { createAPIHooks } from '@lifeomic/one-query';
 
-const hooks = createAPIHooks<APIEndpoints>({ // <-- Specify your custom endpointstype here
+// Passing the explicit generic parameter is important.
+// Provide your custom endpoints type as the parameter.
+const hooks = createAPIHooks<APIEndpoints>({
   // Provide a unique name for this API. This value is only used internally,
   // to ensure that cached queries are scoped only to this set of created
   // hooks.
@@ -190,6 +192,8 @@ const query = useAPIQuery(
 The return value of this hook is identical to the behavior of the `react-query` `useQuery` hook's return value.
 
 ```typescript
+const query = useQuery('GET /messages', { filter: 'some-filter' });
+
 query.data; // Message[] | undefined
 
 if (query.isLoading) {
@@ -206,15 +210,13 @@ Queries are cached using a combination of `route name + payload`. So, in the exa
 
 ### `useAPIMutation`
 
-Type-safe wrapper around `useQuery` from `react-query`.
-
-```typescript
-const mutation = useAPIQuery('PUT /messages/:id');
-```
+Type-safe wrapper around `useMutation` from `react-query`.
 
 The return value of this hook is identical to the behavior of the `react-query` `useMutation` hook's return value. The `mutate` and `mutateAsync` values are typed correctly using the endpoint definition
 
 ```tsx
+const mutation = useMutation('PUT /messages/:id');
+
 return (
   <button
     onClick={() => {
@@ -233,6 +235,8 @@ return (
 
 A helper for combining multiple parallel queries into a single `react-query`-like hook.
 
+Queries performed using this hook are cached independently, just as if they had been performed individually using `useAPIQuery`.
+
 ```typescript
 const query = useCombinedAPIQueries(
   ['GET /messages', { filter: 'some-filter' }],
@@ -249,6 +253,8 @@ if (query.isLoading) {
   return;
 }
 
+// Now, we know that all queries are complete.
+
 query.data; // [Message[], Message]
 
 const [list, message] = query.data;
@@ -256,8 +262,6 @@ const [list, message] = query.data;
 list; // Message[]
 message; // Message
 ```
-
-Queries performed using this hook are cached independently, just as if they had been performed individually using `useAPIQuery`.
 
 #### `isFetching`
 
@@ -289,7 +293,7 @@ const query = useCombinedAPIQueries(
 query.refetchAll();
 
 // Is equivalent to:
-for (const individualQuery of queries) {
+for (const individualQuery of query.queries) {
   void individualQuery.refetch();
 }
 ```
