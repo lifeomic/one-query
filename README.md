@@ -112,7 +112,9 @@ Well-typed hooks should first be created using the `createAPIHooks` helper.
 ```typescript
 import { createAPIHooks } from '@lifeomic/one-query';
 
-const hooks = createAPIHooks<APIEndpoints>({ // <-- Specify your custom endpointstype here
+// Passing the explicit generic parameter is important.
+// Provide your custom endpoints type as the parameter.
+const hooks = createAPIHooks<APIEndpoints>({
   // Provide a unique name for this API. This value is only used internally,
   // to ensure that cached queries are scoped only to this set of created
   // hooks.
@@ -247,7 +249,7 @@ const query = useCombinedQueries(
 query.refetchAll();
 
 // Is equivalent to:
-for (const individualQuery of queries) {
+for (const individualQuery of query.queries) {
   void individualQuery.refetch();
 }
 ```
