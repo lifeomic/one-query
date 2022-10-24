@@ -74,6 +74,33 @@ describe('useAPIQuery', () => {
       );
     });
   });
+
+  test('sending axios parameters works', async () => {
+    const getItems = jest.fn().mockReturnValue({
+      status: 200,
+      data: { message: 'test-message' },
+    });
+    network.mock('GET /items', getItems);
+
+    render(() => {
+      const query = useAPIQuery(
+        'GET /items',
+        { filter: 'test-filter' },
+        { axios: { headers: { 'test-header': 'test-value' } } },
+      );
+      return <div data-testid="content">{query.data?.message || ''}</div>;
+    });
+
+    await TestingLibrary.waitFor(() => {
+      expect(getItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'test-header': 'test-value',
+          }),
+        }),
+      );
+    });
+  });
 });
 
 describe('useAPIMutation', () => {
@@ -237,6 +264,33 @@ describe('useCombinedAPIQueries', () => {
             { message: 'post response 2' },
             { message: 'put response 2' },
           ],
+        }),
+      );
+    });
+  });
+
+  test('sending axios parameters works', async () => {
+    const getItems = jest.fn().mockReturnValue({
+      status: 200,
+      data: { message: 'test-message' },
+    });
+    network.mock('GET /items', getItems);
+
+    render(() => {
+      useCombinedAPIQueries([
+        'GET /items',
+        { filter: 'test-filter' },
+        { axios: { headers: { 'test-header': 'test-value' } } },
+      ]);
+      return <div data-testid="content" />;
+    });
+
+    await TestingLibrary.waitFor(() => {
+      expect(getItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'test-header': 'test-value',
+          }),
         }),
       );
     });

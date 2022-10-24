@@ -3,6 +3,7 @@
   "include": ["./**/*.ts", "./**/*.tsx"],
   "compilerOptions": {
     "lib": ["es2020", "DOM"],
+    "module": "commonjs",
     "outDir": "./dist",
     "jsx": "react",
     "esModuleInterop": false,

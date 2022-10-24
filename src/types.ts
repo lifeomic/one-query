@@ -5,6 +5,7 @@ import {
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query';
+import { AxiosRequestConfig } from 'axios';
 import { CombinedQueriesResult } from './combination';
 
 /**
@@ -48,7 +49,9 @@ export type RequestPayloadOf<
 type RestrictedUseQueryOptions<Response> = Omit<
   UseQueryOptions<Response, unknown>,
   'queryKey' | 'queryFn'
->;
+> & {
+  axios?: AxiosRequestConfig;
+};
 
 export type CombinedRouteTuples<
   Endpoints extends RoughEndpoints,
@@ -59,7 +62,10 @@ export type CombinedRouteTuples<
     | [
         Routes[Index],
         RequestPayloadOf<Endpoints, Routes[Index]>,
-        UseQueryOptions<Endpoints[Routes[Index]]['Response']> | undefined,
+        (
+          | RestrictedUseQueryOptions<Endpoints[Routes[Index]]['Response']>
+          | undefined
+        ),
       ];
 };
 
