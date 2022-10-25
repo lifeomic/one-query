@@ -75,7 +75,7 @@ export type APIMocker<Endpoints extends RoughEndpoints> = {
   reset: () => void;
 };
 
-const createAPIMocker = <Endpoints extends RoughEndpoints>(
+export const createAPIMocker = <Endpoints extends RoughEndpoints>(
   server: SetupServerApi,
   baseUrl: string,
 ): APIMocker<Endpoints> => {
