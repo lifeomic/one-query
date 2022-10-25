@@ -432,6 +432,39 @@ test('something', () => {
 });
 ```
 
+### `createAPIMocker(...)`
+
+This lower-level function is useful for creating a mocking utility if any of the following are true:
+
+- You are not using `jest` as a test runner
+- You need to mock more than one API
+
+If none of the above are true, use `createAPIMockingUtility(...)`.
+
+```typescript
+import { setupServer } from 'msw/node';
+
+// We recommend building your own utility, like this:
+export const useAPIMocking = () => {
+  const server = setupServer();
+
+  server.listen({ onUnhandledRequest: 'error' });
+
+  // Specify your custom "APIEndpoints" type as the generic parameter here.
+  const mocker = createAPIMocker<APIEndpoints>(server, baseUrl);
+
+  beforeEach(() => {
+    mocker.reset();
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  return mocker;
+};
+```
+
 ### `mock(route, mocker)`
 
 Mocks the specified route with the specified mocker _persistently_. The provided mock response will be used indefinitely until it is removed or replaced.
