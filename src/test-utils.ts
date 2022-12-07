@@ -19,6 +19,7 @@ type MockRequestHandler<
   & (Route extends (`GET ${string}` | `DELETE ${string}`)
     ? { query: Endpoints[Route]['Request'] }
     : { body: Endpoints[Route]['Request'] }),
+  context: msw.RestContext,
 ) =>
   | APIMockerResponse<Endpoints[Route]['Response']>
   | Promise<APIMockerResponse<Endpoints[Route]['Response']>>;
@@ -118,20 +119,26 @@ export const createAPIMocker = <Endpoints extends RoughEndpoints>(
             for (const [key, value] of req.url.searchParams.entries()) {
               query[key] = value;
             }
-            // @ts-expect-error TypeScript isn't smart enough to narrow down
-            // the GET/DELETE case here.
-            mockedResponse = await handlerOrResponse({
-              ...mockRequest,
-              query,
-            });
+            mockedResponse = await handlerOrResponse(
+              // @ts-expect-error TypeScript isn't smart enough to narrow down
+              // the GET/DELETE case here.
+              {
+                ...mockRequest,
+                query,
+              },
+              ctx,
+            );
           } else {
             const body = await req.json();
-            // @ts-expect-error TypeScript isn't smart enough to narrow down
-            // the GET/DELETE case here.
-            mockedResponse = await handlerOrResponse({
-              ...mockRequest,
-              body,
-            });
+            mockedResponse = await handlerOrResponse(
+              // @ts-expect-error TypeScript isn't smart enough to narrow down
+              // the GET/DELETE case here.
+              {
+                ...mockRequest,
+                body,
+              },
+              ctx,
+            );
           }
 
           return resolve(

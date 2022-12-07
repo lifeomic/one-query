@@ -98,6 +98,9 @@ describe('useAPIQuery', () => {
             'test-header': 'test-value',
           }),
         }),
+        expect.objectContaining({
+          delay: expect.any(Function),
+        }),
       );
     });
   });
@@ -131,6 +134,9 @@ describe('useAPIMutation', () => {
       expect(networkPost).toHaveBeenCalledWith(
         expect.objectContaining({
           body: { message: 'something' },
+        }),
+        expect.objectContaining({
+          delay: expect.any(Function),
         }),
       );
     });
@@ -291,6 +297,9 @@ describe('useCombinedAPIQueries', () => {
           headers: expect.objectContaining({
             'test-header': 'test-value',
           }),
+        }),
+        expect.objectContaining({
+          delay: expect.any(Function),
         }),
       );
     });

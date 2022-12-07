@@ -41,10 +41,13 @@ describe('createAPIMockingUtility', () => {
     });
 
     test('GET success with function responses', async () => {
-      network.mock('GET /items/:id', (req) => ({
-        status: 200,
-        data: { message: `${req.query.filter}|${req.params.id}` },
-      }));
+      network.mock('GET /items/:id', (req, ctx) => {
+        ctx.delay(50);
+        return {
+          status: 200,
+          data: { message: `${req.query.filter}|${req.params.id}` },
+        };
+      });
 
       const payload = { id: v4(), filter: v4() };
       const result = await client.request('GET /items/:id', payload);
