@@ -3,7 +3,7 @@ This package helps you use [`react-query`](https://tanstack.com/query) with a RE
 ## Installation
 
 ```
-yarn add @lifeomic/one-query
+yarn add @lifeomic/one-query @tanstack/react-query axios
 ```
 
 ## Setup
