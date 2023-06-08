@@ -12,6 +12,7 @@ type TestEndpoints = {
     Request: { filter: string };
     Response: { message: string };
   };
+
   'GET /items/:id': {
     Request: { filter: string };
     Response: { message: string };
@@ -24,17 +25,26 @@ type TestEndpoints = {
     Request: { message: string }[];
     Response: { message: string };
   };
+  'GET /list': {
+    Request: { filter: string; after?: string };
+    Response: { items: { message: string }[]; next?: string };
+  };
 };
 
 const client = axios.create({ baseURL: 'https://www.lifeomic.com' });
 
 jest.spyOn(client, 'request');
 
-const { useAPIQuery, useAPIMutation, useCombinedAPIQueries, useAPICache } =
-  createAPIHooks<TestEndpoints>({
-    name: 'test-name',
-    client,
-  });
+const {
+  useAPIQuery,
+  useAPIInfiniteQuery,
+  useAPIMutation,
+  useCombinedAPIQueries,
+  useAPICache,
+} = createAPIHooks<TestEndpoints>({
+  name: 'test-name',
+  client,
+});
 
 const network = createAPIMockingUtility<TestEndpoints>({
   baseUrl: 'https://www.lifeomic.com',
@@ -93,6 +103,133 @@ describe('useAPIQuery', () => {
 
     await TestingLibrary.waitFor(() => {
       expect(getItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'test-header': 'test-value',
+          }),
+        }),
+      );
+    });
+  });
+});
+
+describe('useAPIInfiniteQuery', () => {
+  test('works correctly', async () => {
+    const next = 'second';
+    const pages = {
+      first: {
+        next: 'second',
+        items: [
+          {
+            message: 'first',
+          },
+        ],
+      },
+      next: {
+        next: undefined,
+        items: [
+          {
+            message: 'second',
+          },
+        ],
+      },
+    };
+
+    const listSpy = jest
+      .fn()
+      .mockResolvedValueOnce({
+        status: 200,
+        data: pages.first,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: pages.next,
+      })
+      .mockResolvedValue({
+        status: 200,
+        data: pages.next,
+      });
+
+    network.mock('GET /list', listSpy);
+
+    render(() => {
+      const query = useAPIInfiniteQuery('GET /list', {
+        filter: 'some-filter',
+        after: undefined,
+        nextPageParamKey: 'after',
+      });
+
+      return (
+        <div>
+          <button
+            onClick={() => {
+              void query.fetchNextPage({
+                pageParam: query.data?.pages[0].next,
+              });
+            }}
+          >
+            fetch next
+          </button>
+          {query?.data?.pages?.flatMap((page) =>
+            page.items.map((message) => (
+              <p key={message.message}>{message.message}</p>
+            )),
+          )}
+        </div>
+      );
+    });
+
+    const [firstMessage, nextMessage] = Object.values(pages)
+      .flatMap((page) => page.items)
+      .map((item) => item.message);
+
+    await TestingLibrary.screen.findByText(firstMessage);
+    expect(TestingLibrary.screen.queryByText(nextMessage)).not.toBeTruthy();
+
+    TestingLibrary.fireEvent.click(TestingLibrary.screen.getByRole('button'));
+    await TestingLibrary.screen.findByText(nextMessage);
+
+    // all data should be on the page
+    expect(TestingLibrary.screen.queryByText(firstMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).toBeTruthy();
+
+    expect(listSpy).toHaveBeenCalledTimes(2);
+    expect(listSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        query: { filter: 'some-filter' },
+      }),
+    );
+    expect(listSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        query: { filter: 'some-filter', after: next },
+      }),
+    );
+  });
+
+  test('sending axios parameters works', async () => {
+    const listSpy = jest.fn().mockResolvedValue({
+      status: 200,
+      data: {
+        next: undefined,
+        items: [],
+      },
+    });
+
+    network.mock('GET /list', listSpy);
+
+    render(() => {
+      useAPIInfiniteQuery(
+        'GET /list',
+        { filter: 'test-filter', nextPageParamKey: 'after' },
+        { axios: { headers: { 'test-header': 'test-value' } } },
+      );
+      return <div />;
+    });
+
+    await TestingLibrary.waitFor(() => {
+      expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: expect.objectContaining({
             'test-header': 'test-value',

@@ -208,6 +208,38 @@ query.data; // Message[]
 
 Queries are cached using a combination of `route name + payload`. So, in the example above, the query key looks roughly like `['GET /messages', { filter: 'some-filter' }]`.
 
+### `useAPIInfiniteQuery`
+
+Type-safe wrapper around `useInfiniteQuery` from `react-query` which has a similar api as `useQuery` with a few key differences.
+
+```typescript
+const query = useAPIInfiniteQuery(
+  'GET /list',
+  {
+    // specify the property name on the payload that would indicate the next page
+    nextPageParamKey: 'after',
+    // on subsequent requests on the same list 'after' will be populated by the
+    // returned value from `getNextPageParam`
+    after: undefined,
+  },
+  {
+    // from the previous response populate the `after` value that will be used on
+    // the payload for the next request
+    getNextPageParam: (last) => {
+      return (last as { next?: string }).next;
+    },
+  },
+);
+```
+
+The return value of this hook is identical to the behavior of the `react-query` `useInfiniteQuery` hook's return value where `data` holds an array of pages.
+
+```tsx
+{
+  query.data.pages.flatMap((page) => page.items.map((item) => ...));
+}
+```
+
 ### `useAPIMutation`
 
 Type-safe wrapper around `useMutation` from `react-query`.

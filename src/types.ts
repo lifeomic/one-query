@@ -4,6 +4,8 @@ import {
   UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
+  UseInfiniteQueryOptions,
+  UseInfiniteQueryResult,
 } from '@tanstack/react-query';
 import { AxiosRequestConfig } from 'axios';
 import { CombinedQueriesResult } from './combination';
@@ -46,10 +48,14 @@ export type RequestPayloadOf<
   Route extends keyof Endpoints,
 > = Endpoints[Route]['Request'] & PathParamsOf<Route>;
 
-type RestrictedUseQueryOptions<Response> = Omit<
-  UseQueryOptions<Response, unknown>,
-  'queryKey' | 'queryFn'
-> & {
+type QueryOptions<Response> =
+  | UseQueryOptions<Response, unknown>
+  | UseInfiniteQueryOptions<Response, unknown>;
+
+type RestrictedUseQueryOptions<
+  Response,
+  TQueryOptions extends QueryOptions<Response> = UseQueryOptions<Response>,
+> = Omit<TQueryOptions, 'queryKey' | 'queryFn'> & {
   axios?: AxiosRequestConfig;
 };
 
@@ -100,6 +106,17 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
     payload: RequestPayloadOf<Endpoints, Route>,
     options?: RestrictedUseQueryOptions<Endpoints[Route]['Response']>,
   ) => UseQueryResult<Endpoints[Route]['Response']>;
+
+  useAPIInfiniteQuery: <Route extends keyof Endpoints & string>(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route> & {
+      nextPageParamKey: keyof RequestPayloadOf<Endpoints, Route>;
+    },
+    options?: RestrictedUseQueryOptions<
+      Endpoints[Route]['Response'],
+      UseInfiniteQueryOptions
+    >,
+  ) => UseInfiniteQueryResult<Endpoints[Route]['Response']>;
 
   useAPIMutation: <Route extends keyof Endpoints & string>(
     route: Route,

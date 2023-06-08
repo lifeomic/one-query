@@ -1,5 +1,6 @@
 import {
   useQuery,
+  useInfiniteQuery,
   useMutation,
   QueryKey,
   useQueries,
@@ -30,6 +31,30 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
           client
             .request(route, payload, options?.axios)
             .then((res) => res.data),
+        options,
+      );
+    },
+    useAPIInfiniteQuery: (route, initPayload, options) => {
+      const { nextPageParamKey } = initPayload;
+      // @ts-expect-error, typescript enforcing only deleting non-required props
+      delete initPayload.nextPageParamKey;
+      const queryKey: QueryKey = [createQueryKey(name, route, initPayload)];
+      return useInfiniteQuery(
+        queryKey,
+        ({ pageParam }) => {
+          const nextPayload =
+            pageParam && nextPageParamKey
+              ? {
+                  ...initPayload,
+                  [nextPageParamKey]: pageParam,
+                }
+              : undefined;
+          const payload = nextPayload || initPayload;
+
+          return client
+            .request(route, payload, options?.axios)
+            .then((res) => res.data);
+        },
         options,
       );
     },
