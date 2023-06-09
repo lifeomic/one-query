@@ -12,6 +12,7 @@ type TestEndpoints = {
     Request: { filter: string };
     Response: { message: string };
   };
+
   'GET /items/:id': {
     Request: { filter: string };
     Response: { message: string };
@@ -24,17 +25,34 @@ type TestEndpoints = {
     Request: { message: string }[];
     Response: { message: string };
   };
+  'GET /list': {
+    Request: {
+      filter: string;
+      after?: string;
+      before?: string;
+    };
+    Response: {
+      items: { message: string }[];
+      next?: string;
+      previous?: string;
+    };
+  };
 };
 
 const client = axios.create({ baseURL: 'https://www.lifeomic.com' });
 
 jest.spyOn(client, 'request');
 
-const { useAPIQuery, useAPIMutation, useCombinedAPIQueries, useAPICache } =
-  createAPIHooks<TestEndpoints>({
-    name: 'test-name',
-    client,
-  });
+const {
+  useAPIQuery,
+  useInfiniteAPIQuery,
+  useAPIMutation,
+  useCombinedAPIQueries,
+  useAPICache,
+} = createAPIHooks<TestEndpoints>({
+  name: 'test-name',
+  client,
+});
 
 const network = createAPIMockingUtility<TestEndpoints>({
   baseUrl: 'https://www.lifeomic.com',
@@ -93,6 +111,188 @@ describe('useAPIQuery', () => {
 
     await TestingLibrary.waitFor(() => {
       expect(getItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'test-header': 'test-value',
+          }),
+        }),
+      );
+    });
+  });
+});
+
+describe('useInfiniteAPIQuery', () => {
+  test('works correctly', async () => {
+    const next = 'second';
+    const previous = 'previous';
+    const pages = {
+      previous: {
+        previous: undefined,
+        next: 'first',
+        items: [
+          {
+            message: 'previous',
+          },
+        ],
+      },
+      first: {
+        previous,
+        next: 'second',
+        items: [
+          {
+            message: 'first',
+          },
+        ],
+      },
+      next: {
+        previous: 'first',
+        next: undefined,
+        items: [
+          {
+            message: 'second',
+          },
+        ],
+      },
+    };
+
+    const listSpy = jest
+      .fn()
+      .mockResolvedValueOnce({
+        status: 200,
+        data: pages.first,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: pages.next,
+      })
+      .mockResolvedValue({
+        status: 200,
+        data: pages.previous,
+      });
+
+    network.mock('GET /list', listSpy);
+
+    render(() => {
+      const query = useInfiniteAPIQuery('GET /list', {
+        filter: 'some-filter',
+        after: undefined,
+      });
+
+      return (
+        <div>
+          <button
+            onClick={() => {
+              const lastPage = query?.data?.pages.at(-1);
+              void query.fetchNextPage({
+                pageParam: {
+                  after: lastPage?.next,
+                },
+              });
+            }}
+          >
+            fetch next
+          </button>
+          <button
+            onClick={() => {
+              const firstPage = query?.data?.pages.at(0);
+
+              void query.fetchPreviousPage({
+                pageParam: {
+                  before: firstPage?.previous,
+                },
+              });
+            }}
+          >
+            fetch previous
+          </button>
+          {query?.data?.pages?.flatMap((page) =>
+            page.items.map((message) => (
+              <p key={message.message}>{message.message}</p>
+            )),
+          )}
+        </div>
+      );
+    });
+
+    const [previousMessage, firstMessage, nextMessage] = Object.values(pages)
+      .flatMap((page) => page.items)
+      .map((item) => item.message);
+
+    // initial load
+    await TestingLibrary.screen.findByText(firstMessage);
+    expect(TestingLibrary.screen.queryByText(previousMessage)).not.toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).not.toBeTruthy();
+
+    // load next page _after_ first
+    TestingLibrary.fireEvent.click(
+      TestingLibrary.screen.getByRole('button', {
+        name: /fetch next/i,
+      }),
+    );
+    await TestingLibrary.screen.findByText(nextMessage);
+
+    expect(TestingLibrary.screen.queryByText(firstMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(previousMessage)).not.toBeTruthy();
+
+    // load previous page _before_ first
+    TestingLibrary.fireEvent.click(
+      TestingLibrary.screen.getByRole('button', {
+        name: /fetch previous/i,
+      }),
+    );
+    await TestingLibrary.screen.findByText(previousMessage);
+
+    // all data should now be on the page
+    expect(TestingLibrary.screen.queryByText(firstMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(previousMessage)).toBeTruthy();
+
+    expect(listSpy).toHaveBeenCalledTimes(3);
+    expect(listSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        query: { filter: 'some-filter' },
+      }),
+    );
+    expect(listSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        query: { filter: 'some-filter', after: next },
+      }),
+    );
+    expect(listSpy).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        query: { filter: 'some-filter', before: previous },
+      }),
+    );
+  });
+
+  test('sending axios parameters works', async () => {
+    const listSpy = jest.fn().mockResolvedValue({
+      status: 200,
+      data: {
+        next: undefined,
+        items: [],
+      },
+    });
+
+    network.mock('GET /list', listSpy);
+
+    render(() => {
+      useInfiniteAPIQuery(
+        'GET /list',
+        { filter: 'test-filter' },
+        {
+          axios: { headers: { 'test-header': 'test-value' } },
+        },
+      );
+      return <div />;
+    });
+
+    await TestingLibrary.waitFor(() => {
+      expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: expect.objectContaining({
             'test-header': 'test-value',

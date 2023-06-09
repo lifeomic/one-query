@@ -1,5 +1,6 @@
 import {
   useQuery,
+  useInfiniteQuery,
   useMutation,
   QueryKey,
   useQueries,
@@ -32,6 +33,25 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
             .then((res) => res.data),
         options,
       );
+    },
+    useInfiniteAPIQuery: (route, initPayload, options) => {
+      const queryKey: QueryKey = [createQueryKey(name, route, initPayload)];
+      const query = useInfiniteQuery(
+        queryKey,
+        ({ pageParam }) => {
+          const payload = {
+            ...initPayload,
+            ...pageParam,
+          } as typeof initPayload;
+
+          return client
+            .request(route, payload, options?.axios)
+            .then((res) => res.data);
+        },
+        options,
+      );
+
+      return query;
     },
     useAPIMutation: (route, options) =>
       useMutation(
