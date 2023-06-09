@@ -178,7 +178,6 @@ describe('useInfiniteAPIQuery', () => {
         after: undefined,
       });
 
-      query.hasPreviousPage;
       return (
         <div>
           <button
@@ -260,12 +259,6 @@ describe('useInfiniteAPIQuery', () => {
       2,
       expect.objectContaining({
         query: { filter: 'some-filter', after: next },
-      }),
-    );
-    expect(listSpy).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        query: { filter: 'some-filter' },
       }),
     );
     expect(listSpy).toHaveBeenNthCalledWith(
