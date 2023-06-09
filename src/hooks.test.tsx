@@ -26,8 +26,16 @@ type TestEndpoints = {
     Response: { message: string };
   };
   'GET /list': {
-    Request: { filter: string; after?: string };
-    Response: { items: { message: string }[]; next?: string };
+    Request: {
+      filter: string;
+      after?: string;
+      before?: string;
+    };
+    Response: {
+      items: { message: string }[];
+      next?: string;
+      previous?: string;
+    };
   };
 };
 
@@ -37,7 +45,7 @@ jest.spyOn(client, 'request');
 
 const {
   useAPIQuery,
-  useAPIInfiniteQuery,
+  useInfiniteAPIQuery,
   useAPIMutation,
   useCombinedAPIQueries,
   useAPICache,
@@ -113,11 +121,22 @@ describe('useAPIQuery', () => {
   });
 });
 
-describe('useAPIInfiniteQuery', () => {
+describe('useInfiniteAPIQuery', () => {
   test('works correctly', async () => {
     const next = 'second';
+    const previous = 'previous';
     const pages = {
+      previous: {
+        previous: undefined,
+        next: 'first',
+        items: [
+          {
+            message: 'previous',
+          },
+        ],
+      },
       first: {
+        previous,
         next: 'second',
         items: [
           {
@@ -126,6 +145,7 @@ describe('useAPIInfiniteQuery', () => {
         ],
       },
       next: {
+        previous: 'first',
         next: undefined,
         items: [
           {
@@ -147,28 +167,44 @@ describe('useAPIInfiniteQuery', () => {
       })
       .mockResolvedValue({
         status: 200,
-        data: pages.next,
+        data: pages.previous,
       });
 
     network.mock('GET /list', listSpy);
 
     render(() => {
-      const query = useAPIInfiniteQuery('GET /list', {
+      const query = useInfiniteAPIQuery('GET /list', {
         filter: 'some-filter',
         after: undefined,
-        nextPageParamKey: 'after',
       });
 
+      query.hasPreviousPage;
       return (
         <div>
           <button
             onClick={() => {
+              const lastPage = query?.data?.pages.at(-1);
               void query.fetchNextPage({
-                pageParam: query.data?.pages[0].next,
+                pageParam: {
+                  after: lastPage?.next,
+                },
               });
             }}
           >
             fetch next
+          </button>
+          <button
+            onClick={() => {
+              const firstPage = query?.data?.pages.at(0);
+
+              void query.fetchPreviousPage({
+                pageParam: {
+                  before: firstPage?.previous,
+                },
+              });
+            }}
+          >
+            fetch previous
           </button>
           {query?.data?.pages?.flatMap((page) =>
             page.items.map((message) => (
@@ -179,21 +215,41 @@ describe('useAPIInfiniteQuery', () => {
       );
     });
 
-    const [firstMessage, nextMessage] = Object.values(pages)
+    const [previousMessage, firstMessage, nextMessage] = Object.values(pages)
       .flatMap((page) => page.items)
       .map((item) => item.message);
 
+    // initial load
     await TestingLibrary.screen.findByText(firstMessage);
+    expect(TestingLibrary.screen.queryByText(previousMessage)).not.toBeTruthy();
     expect(TestingLibrary.screen.queryByText(nextMessage)).not.toBeTruthy();
 
-    TestingLibrary.fireEvent.click(TestingLibrary.screen.getByRole('button'));
+    // load next page _after_ first
+    TestingLibrary.fireEvent.click(
+      TestingLibrary.screen.getByRole('button', {
+        name: /fetch next/i,
+      }),
+    );
     await TestingLibrary.screen.findByText(nextMessage);
 
-    // all data should be on the page
     expect(TestingLibrary.screen.queryByText(firstMessage)).toBeTruthy();
     expect(TestingLibrary.screen.queryByText(nextMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(previousMessage)).not.toBeTruthy();
 
-    expect(listSpy).toHaveBeenCalledTimes(2);
+    // load previous page _before_ first
+    TestingLibrary.fireEvent.click(
+      TestingLibrary.screen.getByRole('button', {
+        name: /fetch previous/i,
+      }),
+    );
+    await TestingLibrary.screen.findByText(previousMessage);
+
+    // all data should now be on the page
+    expect(TestingLibrary.screen.queryByText(firstMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(previousMessage)).toBeTruthy();
+
+    expect(listSpy).toHaveBeenCalledTimes(3);
     expect(listSpy).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -204,6 +260,18 @@ describe('useAPIInfiniteQuery', () => {
       2,
       expect.objectContaining({
         query: { filter: 'some-filter', after: next },
+      }),
+    );
+    expect(listSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        query: { filter: 'some-filter' },
+      }),
+    );
+    expect(listSpy).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        query: { filter: 'some-filter', before: previous },
       }),
     );
   });
@@ -220,10 +288,12 @@ describe('useAPIInfiniteQuery', () => {
     network.mock('GET /list', listSpy);
 
     render(() => {
-      useAPIInfiniteQuery(
+      useInfiniteAPIQuery(
         'GET /list',
-        { filter: 'test-filter', nextPageParamKey: 'after' },
-        { axios: { headers: { 'test-header': 'test-value' } } },
+        { filter: 'test-filter' },
+        {
+          axios: { headers: { 'test-header': 'test-value' } },
+        },
       );
       return <div />;
     });

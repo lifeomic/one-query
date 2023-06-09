@@ -208,36 +208,53 @@ query.data; // Message[]
 
 Queries are cached using a combination of `route name + payload`. So, in the example above, the query key looks roughly like `['GET /messages', { filter: 'some-filter' }]`.
 
-### `useAPIInfiniteQuery`
+### `useInfiniteAPIQuery`
 
 Type-safe wrapper around `useInfiniteQuery` from `react-query` which has a similar api as `useQuery` with a few key differences.
 
-```typescript
-const query = useAPIInfiniteQuery(
+```tsx
+const query = useInfiniteAPIQuery(
   'GET /list',
   {
-    // specify the property name on the payload that would indicate the next page
-    nextPageParamKey: 'after',
-    // on subsequent requests on the same list 'after' will be populated by the
-    // returned value from `getNextPageParam`
     after: undefined,
   },
   {
-    // from the previous response populate the `after` value that will be used on
-    // the payload for the next request
-    getNextPageParam: (last) => {
-      return (last as { next?: string }).next;
-    },
+    getNextPageParam: (lastPage) => ({ after: lastPage.next }),
+    getPreviousPageParam: (firstPage) => ({ before: firstPage.previous }),
   },
 );
+
+...
+
+<button
+  onClick={() => {
+    void query.fetchNextPage();
+
+    // Or fetch previous page
+    // void query.fetchPreviousPage();
+  }}
+/>;
 ```
 
 The return value of this hook is identical to the behavior of the `react-query` `useInfiniteQuery` hook's return value where `data` holds an array of pages.
+
+When returning `undefined` from `getNextPageParam` it will set `query.hasNextPage` to false, otherwise it will merge the next api request payload with the returned object, likewise for `getPreviousPageParam` and `query.hasPreviousPage`.
 
 ```tsx
 {
   query.data.pages.flatMap((page) => page.items.map((item) => ...));
 }
+```
+
+An alternative to using the `getNextPageParam` or `getPreviousPageParam` callback options, the query methods also accept a `pageParam` input.
+
+```typescript
+const lastPage = query?.data?.pages[query.data.pages.length - 1];
+query.fetchNextPage({
+  pageParam: {
+    after: lastPage?.next,
+  },
+});
 ```
 
 ### `useAPIMutation`

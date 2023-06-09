@@ -6,6 +6,9 @@ import {
   UseQueryResult,
   UseInfiniteQueryOptions,
   UseInfiniteQueryResult,
+  FetchNextPageOptions,
+  FetchPreviousPageOptions,
+  InfiniteQueryObserverResult,
 } from '@tanstack/react-query';
 import { AxiosRequestConfig } from 'axios';
 import { CombinedQueriesResult } from './combination';
@@ -48,15 +51,36 @@ export type RequestPayloadOf<
   Route extends keyof Endpoints,
 > = Endpoints[Route]['Request'] & PathParamsOf<Route>;
 
-type QueryOptions<Response> =
-  | UseQueryOptions<Response, unknown>
-  | UseInfiniteQueryOptions<Response, unknown>;
-
-type RestrictedUseQueryOptions<
-  Response,
-  TQueryOptions extends QueryOptions<Response> = UseQueryOptions<Response>,
-> = Omit<TQueryOptions, 'queryKey' | 'queryFn'> & {
+type RestrictedUseQueryOptions<Response> = Omit<
+  UseQueryOptions<Response, unknown>,
+  'queryKey' | 'queryFn'
+> & {
   axios?: AxiosRequestConfig;
+};
+
+type RestrictedUseInfiniteQueryOptions<Response, Request> = Omit<
+  UseInfiniteQueryOptions<Response, unknown>,
+  'queryKey' | 'queryFn' | 'getNextPageParam' | 'getPreviousPageParam'
+> & {
+  axios?: AxiosRequestConfig;
+  getNextPageParam?: (lastPage: Response) => Partial<Request> | undefined;
+  getPreviousPageParam?: (firstPage: Response) => Partial<Request> | undefined;
+};
+
+type RestrictedUseInfiniteQueryResult<Response, Request> = Omit<
+  UseInfiniteQueryResult<Response>,
+  'fetchNextPage' | 'fetchPreviousPage'
+> & {
+  fetchNextPage: (
+    options?: Omit<FetchNextPageOptions, 'pageParam'> & {
+      pageParam: Partial<Request>;
+    },
+  ) => Promise<InfiniteQueryObserverResult<Response>>;
+  fetchPreviousPage: (
+    options?: Omit<FetchPreviousPageOptions, 'pageParam'> & {
+      pageParam: Partial<Request>;
+    },
+  ) => Promise<InfiniteQueryObserverResult<Response>>;
 };
 
 export type CombinedRouteTuples<
@@ -107,16 +131,17 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
     options?: RestrictedUseQueryOptions<Endpoints[Route]['Response']>,
   ) => UseQueryResult<Endpoints[Route]['Response']>;
 
-  useAPIInfiniteQuery: <Route extends keyof Endpoints & string>(
+  useInfiniteAPIQuery: <Route extends keyof Endpoints & string>(
     route: Route,
-    payload: RequestPayloadOf<Endpoints, Route> & {
-      nextPageParamKey: keyof RequestPayloadOf<Endpoints, Route>;
-    },
-    options?: RestrictedUseQueryOptions<
+    payload: RequestPayloadOf<Endpoints, Route>,
+    options?: RestrictedUseInfiniteQueryOptions<
       Endpoints[Route]['Response'],
-      UseInfiniteQueryOptions
+      RequestPayloadOf<Endpoints, Route>
     >,
-  ) => UseInfiniteQueryResult<Endpoints[Route]['Response']>;
+  ) => RestrictedUseInfiniteQueryResult<
+    Endpoints[Route]['Response'],
+    RequestPayloadOf<Endpoints, Route>
+  >;
 
   useAPIMutation: <Route extends keyof Endpoints & string>(
     route: Route,
