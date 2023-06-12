@@ -42,6 +42,8 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
           const payload = {
             ...initPayload,
             ...pageParam,
+            // casting here because `pageParam` is typed `any` and once it is
+            // merged with initPayload it makes `payload` `any`
           } as typeof initPayload;
 
           return client

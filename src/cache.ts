@@ -49,6 +49,29 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
     payload: RequestPayloadOf<Endpoints, Route>,
   ) => InternalQueryKey,
 ): CacheUtils<Endpoints> => {
+  const updateCache: CacheUtils<Endpoints>['updateCache'] = (
+    route,
+    payload,
+    updater,
+  ) => {
+    client.setQueryData<Endpoints[typeof route]['Response']>(
+      [makeQueryKey(route, payload)],
+      typeof updater !== 'function'
+        ? updater
+        : (current) => {
+            if (current === undefined) {
+              return;
+            }
+            return produce(
+              current,
+              // @ts-expect-error TypeScript incorrectly thinks that `updater`
+              // still might not be a function. It is wrong.
+              updater,
+            );
+          },
+    );
+  };
+
   return {
     invalidateQueries: (spec) => {
       void client.invalidateQueries(createQueryFilterFromSpec(spec));
@@ -56,23 +79,7 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
     resetQueries: (spec) => {
       void client.resetQueries(createQueryFilterFromSpec(spec));
     },
-    updateCache: (route, payload, updater) => {
-      client.setQueryData<Endpoints[typeof route]['Response']>(
-        [makeQueryKey(route, payload)],
-        typeof updater !== 'function'
-          ? updater
-          : (current) => {
-              if (current === undefined) {
-                return;
-              }
-              return produce(
-                current,
-                // @ts-expect-error TypeScript incorrectly thinks that `updater`
-                // still might not be a function. It is wrong.
-                updater,
-              );
-            },
-      );
-    },
+    updateCache: updateCache,
+    updatePaginatedCache: updateCache,
   };
 };
