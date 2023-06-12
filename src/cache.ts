@@ -43,7 +43,7 @@ const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
     }),
 });
 
-export const infinite = 'infinite' as const;
+export const INFINITE_QUERY_KEY = 'infinite' as const;
 
 export const createCacheUtils = <Endpoints extends RoughEndpoints>(
   client: QueryClient,
@@ -53,7 +53,7 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
   ) => InternalQueryKey,
 ): CacheUtils<Endpoints> => {
   const updateCache: (
-    keyPrefix?: typeof infinite,
+    keyPrefix?: typeof INFINITE_QUERY_KEY,
   ) => CacheUtils<Endpoints>['updateCache'] =
     (keyPrefix) => (route, payload, updater) => {
       client.setQueryData<Endpoints[typeof route]['Response']>(
@@ -82,6 +82,6 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
       void client.resetQueries(createQueryFilterFromSpec(spec));
     },
     updateCache: updateCache(),
-    updateInfiniteCache: updateCache(infinite),
+    updateInfiniteCache: updateCache(INFINITE_QUERY_KEY),
   };
 };
