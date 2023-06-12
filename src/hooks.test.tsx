@@ -500,12 +500,24 @@ describe('useCombinedAPIQueries', () => {
 describe('useAPICache', () => {
   describe('invalidation', () => {
     beforeEach(() => {
+      const messages = [{ message: '1' }, { message: '2' }, { message: '3' }];
       // Mock a bunch of different requests to help us confirm render count.
-      network.mockOrdered('GET /items/:id', [
-        { status: 200, data: { message: '1' } },
-        { status: 200, data: { message: '2' } },
-        { status: 200, data: { message: '3' } },
-      ]);
+      network
+        .mockOrdered(
+          'GET /items/:id',
+          messages.map((data) => ({ status: 200, data })),
+        )
+        .mockOrdered(
+          'GET /list',
+          messages.map((item) => ({
+            status: 200,
+            data: {
+              previous: undefined,
+              next: undefined,
+              items: [item],
+            },
+          })),
+        );
     });
 
     (['resetQueries', 'invalidateQueries'] as const).forEach((method) => {
@@ -536,6 +548,89 @@ describe('useAPICache', () => {
             </>
           );
         };
+
+        it('invalidates infinite queries', async () => {
+          const screen = render(() => (
+            <TestComponent
+              getRenderData={() => {
+                const { data } = useInfiniteAPIQuery(
+                  'GET /list',
+                  {
+                    filter: 'some-filter',
+                  },
+                  {
+                    cacheTime: Infinity,
+                  },
+                );
+
+                return `Response: ${
+                  data?.pages?.at(-1)?.items?.at(-1)?.message || 'undefined'
+                }`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /list': (variables) =>
+                    variables.filter === 'some-filter',
+                });
+              }}
+            />
+          ));
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 1',
+            );
+          });
+
+          expect(client.request).toHaveBeenCalledTimes(1);
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 2',
+            );
+            expect(client.request).toHaveBeenCalledTimes(2);
+          });
+
+          screen.rerender(
+            <TestComponent
+              getRenderData={() => {
+                const { data } = useInfiniteAPIQuery(
+                  'GET /list',
+                  {
+                    filter: 'some-filter',
+                  },
+                  {
+                    cacheTime: Infinity,
+                  },
+                );
+
+                return `Response: ${
+                  data?.pages?.at(-1)?.items?.at(-1)?.message || 'undefined'
+                }`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /list': 'all',
+                });
+              }}
+            />,
+          );
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 3',
+            );
+            expect(client.request).toHaveBeenCalledTimes(3);
+          });
+        });
 
         it('invalidates matching queries based on static match', async () => {
           const variables: RequestPayloadOf<TestEndpoints, 'GET /items/:id'> = {
@@ -770,7 +865,7 @@ describe('useAPICache', () => {
     });
   });
 
-  (['updateCache', 'updatePaginatedCache'] as const).forEach((method) => {
+  (['updateCache', 'updateInfiniteCache'] as const).forEach((method) => {
     describe(`${method}`, () => {
       const config =
         method === 'updateCache'

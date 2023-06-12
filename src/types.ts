@@ -124,7 +124,7 @@ export type CacheUtils<Endpoints extends RoughEndpoints> = {
     updater: CacheUpdate<Endpoints[Route]['Response']>,
   ) => void;
 
-  updatePaginatedCache: <Route extends keyof Endpoints & string>(
+  updateInfiniteCache: <Route extends keyof Endpoints & string>(
     route: Route,
     payload: RequestPayloadOf<Endpoints, Route>,
     updater: CacheUpdate<InfiniteData<Endpoints[Route]['Response']>>,

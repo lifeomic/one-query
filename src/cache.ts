@@ -20,6 +20,7 @@ const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
       }
 
       const payloadsToInvalidate = endpoints[entry.route];
+
       if (!payloadsToInvalidate) {
         return false;
       }
@@ -42,6 +43,8 @@ const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
     }),
 });
 
+export const infinite = 'infinite' as const;
+
 export const createCacheUtils = <Endpoints extends RoughEndpoints>(
   client: QueryClient,
   makeQueryKey: <Route extends keyof Endpoints & string>(
@@ -49,28 +52,27 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
     payload: RequestPayloadOf<Endpoints, Route>,
   ) => InternalQueryKey,
 ): CacheUtils<Endpoints> => {
-  const updateCache: CacheUtils<Endpoints>['updateCache'] = (
-    route,
-    payload,
-    updater,
-  ) => {
-    client.setQueryData<Endpoints[typeof route]['Response']>(
-      [makeQueryKey(route, payload)],
-      typeof updater !== 'function'
-        ? updater
-        : (current) => {
-            if (current === undefined) {
-              return;
-            }
-            return produce(
-              current,
-              // @ts-expect-error TypeScript incorrectly thinks that `updater`
-              // still might not be a function. It is wrong.
-              updater,
-            );
-          },
-    );
-  };
+  const updateCache: (
+    keyPrefix?: typeof infinite,
+  ) => CacheUtils<Endpoints>['updateCache'] =
+    (keyPrefix) => (route, payload, updater) => {
+      client.setQueryData<Endpoints[typeof route]['Response']>(
+        [keyPrefix, makeQueryKey(route, payload)].filter(Boolean),
+        typeof updater !== 'function'
+          ? updater
+          : (current) => {
+              if (current === undefined) {
+                return;
+              }
+              return produce(
+                current,
+                // @ts-expect-error TypeScript incorrectly thinks that `updater`
+                // still might not be a function. It is wrong.
+                updater,
+              );
+            },
+      );
+    };
 
   return {
     invalidateQueries: (spec) => {
@@ -79,7 +81,7 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
     resetQueries: (spec) => {
       void client.resetQueries(createQueryFilterFromSpec(spec));
     },
-    updateCache: updateCache,
-    updatePaginatedCache: updateCache,
+    updateCache: updateCache(),
+    updateInfiniteCache: updateCache(infinite),
   };
 };

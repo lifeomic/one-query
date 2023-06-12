@@ -455,12 +455,12 @@ cache.updateCache(
 );
 ```
 
-When dealing with a cache entry that is paginated prefer using `updatePaginatedCache` which behaves the same as `updateCache`
+When dealing with a cache entry that was initiated via `useInfiniteAPIQuery` (paginated) prefer using `updateInfiniteCache` which otherwise behaves the same as `updateCache`
 
 ```typescript
 const cache = useAPICache();
 
-cache.updatePaginatedCache(
+cache.updateInfiniteCache(
   'GET /list',
   { filter: 'some-filter' },
   (current) => {...},
