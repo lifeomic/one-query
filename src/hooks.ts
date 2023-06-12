@@ -7,7 +7,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { AxiosInstance } from 'axios';
-import { createCacheUtils } from './cache';
+import { createCacheUtils, INFINITE_QUERY_KEY } from './cache';
 import { combineQueries } from './combination';
 import { APIQueryHooks, RoughEndpoints } from './types';
 import { APIClient, createQueryKey } from './util';
@@ -35,13 +35,18 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       );
     },
     useInfiniteAPIQuery: (route, initPayload, options) => {
-      const queryKey: QueryKey = [createQueryKey(name, route, initPayload)];
+      const queryKey: QueryKey = [
+        INFINITE_QUERY_KEY,
+        createQueryKey(name, route, initPayload),
+      ];
       const query = useInfiniteQuery(
         queryKey,
         ({ pageParam }) => {
           const payload = {
             ...initPayload,
             ...pageParam,
+            // casting here because `pageParam` is typed `any` and once it is
+            // merged with initPayload it makes `payload` `any`
           } as typeof initPayload;
 
           return client

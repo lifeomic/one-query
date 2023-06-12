@@ -8,6 +8,7 @@ import {
   UseInfiniteQueryResult,
   FetchNextPageOptions,
   FetchPreviousPageOptions,
+  InfiniteData,
   InfiniteQueryObserverResult,
 } from '@tanstack/react-query';
 import { AxiosRequestConfig } from 'axios';
@@ -121,6 +122,12 @@ export type CacheUtils<Endpoints extends RoughEndpoints> = {
     route: Route,
     payload: RequestPayloadOf<Endpoints, Route>,
     updater: CacheUpdate<Endpoints[Route]['Response']>,
+  ) => void;
+
+  updateInfiniteCache: <Route extends keyof Endpoints & string>(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+    updater: CacheUpdate<InfiniteData<Endpoints[Route]['Response']>>,
   ) => void;
 };
 

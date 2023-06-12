@@ -20,6 +20,7 @@ const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
       }
 
       const payloadsToInvalidate = endpoints[entry.route];
+
       if (!payloadsToInvalidate) {
         return false;
       }
@@ -42,6 +43,8 @@ const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
     }),
 });
 
+export const INFINITE_QUERY_KEY = 'infinite' as const;
+
 export const createCacheUtils = <Endpoints extends RoughEndpoints>(
   client: QueryClient,
   makeQueryKey: <Route extends keyof Endpoints & string>(
@@ -49,16 +52,12 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
     payload: RequestPayloadOf<Endpoints, Route>,
   ) => InternalQueryKey,
 ): CacheUtils<Endpoints> => {
-  return {
-    invalidateQueries: (spec) => {
-      void client.invalidateQueries(createQueryFilterFromSpec(spec));
-    },
-    resetQueries: (spec) => {
-      void client.resetQueries(createQueryFilterFromSpec(spec));
-    },
-    updateCache: (route, payload, updater) => {
+  const updateCache: (
+    keyPrefix?: typeof INFINITE_QUERY_KEY,
+  ) => CacheUtils<Endpoints>['updateCache'] =
+    (keyPrefix) => (route, payload, updater) => {
       client.setQueryData<Endpoints[typeof route]['Response']>(
-        [makeQueryKey(route, payload)],
+        [keyPrefix, makeQueryKey(route, payload)].filter(Boolean),
         typeof updater !== 'function'
           ? updater
           : (current) => {
@@ -73,6 +72,16 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
               );
             },
       );
+    };
+
+  return {
+    invalidateQueries: (spec) => {
+      void client.invalidateQueries(createQueryFilterFromSpec(spec));
     },
+    resetQueries: (spec) => {
+      void client.resetQueries(createQueryFilterFromSpec(spec));
+    },
+    updateCache: updateCache(),
+    updateInfiniteCache: updateCache(INFINITE_QUERY_KEY),
   };
 };

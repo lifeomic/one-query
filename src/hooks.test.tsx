@@ -500,12 +500,24 @@ describe('useCombinedAPIQueries', () => {
 describe('useAPICache', () => {
   describe('invalidation', () => {
     beforeEach(() => {
+      const messages = [{ message: '1' }, { message: '2' }, { message: '3' }];
       // Mock a bunch of different requests to help us confirm render count.
-      network.mockOrdered('GET /items/:id', [
-        { status: 200, data: { message: '1' } },
-        { status: 200, data: { message: '2' } },
-        { status: 200, data: { message: '3' } },
-      ]);
+      network
+        .mockOrdered(
+          'GET /items/:id',
+          messages.map((data) => ({ status: 200, data })),
+        )
+        .mockOrdered(
+          'GET /list',
+          messages.map((item) => ({
+            status: 200,
+            data: {
+              previous: undefined,
+              next: undefined,
+              items: [item],
+            },
+          })),
+        );
     });
 
     (['resetQueries', 'invalidateQueries'] as const).forEach((method) => {
@@ -536,6 +548,89 @@ describe('useAPICache', () => {
             </>
           );
         };
+
+        it('invalidates infinite queries', async () => {
+          const screen = render(() => (
+            <TestComponent
+              getRenderData={() => {
+                const { data } = useInfiniteAPIQuery(
+                  'GET /list',
+                  {
+                    filter: 'some-filter',
+                  },
+                  {
+                    cacheTime: Infinity,
+                  },
+                );
+
+                return `Response: ${
+                  data?.pages?.at(-1)?.items?.at(-1)?.message || 'undefined'
+                }`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /list': (variables) =>
+                    variables.filter === 'some-filter',
+                });
+              }}
+            />
+          ));
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 1',
+            );
+          });
+
+          expect(client.request).toHaveBeenCalledTimes(1);
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 2',
+            );
+            expect(client.request).toHaveBeenCalledTimes(2);
+          });
+
+          screen.rerender(
+            <TestComponent
+              getRenderData={() => {
+                const { data } = useInfiniteAPIQuery(
+                  'GET /list',
+                  {
+                    filter: 'some-filter',
+                  },
+                  {
+                    cacheTime: Infinity,
+                  },
+                );
+
+                return `Response: ${
+                  data?.pages?.at(-1)?.items?.at(-1)?.message || 'undefined'
+                }`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /list': 'all',
+                });
+              }}
+            />,
+          );
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 3',
+            );
+            expect(client.request).toHaveBeenCalledTimes(3);
+          });
+        });
 
         it('invalidates matching queries based on static match', async () => {
           const variables: RequestPayloadOf<TestEndpoints, 'GET /items/:id'> = {
@@ -770,152 +865,192 @@ describe('useAPICache', () => {
     });
   });
 
-  describe('updateCache', () => {
-    const TestComponent: React.FC<{
-      getRenderData: () => string;
-      onPress: (cache: CacheUtils<TestEndpoints>) => void;
-    }> = ({ getRenderData, onPress }) => {
-      const cache = useAPICache();
-      const data = getRenderData();
-      return (
-        <>
-          <div data-testid="render-data">{data}</div>
-          <button onClick={() => onPress(cache)}>Update Cache</button>
-        </>
-      );
-    };
+  (['updateCache', 'updateInfiniteCache'] as const).forEach((method) => {
+    describe(`${method}`, () => {
+      const config =
+        method === 'updateCache'
+          ? {
+              route: 'GET /items',
+              getRenderData: () => {
+                const { data } = useAPIQuery('GET /items', { filter: '' });
+                return `Response: ${data?.message}`;
+              },
+            }
+          : {
+              route: 'GET /list',
+              getRenderData: () => {
+                const { data } = useInfiniteAPIQuery('GET /list', {
+                  filter: '',
+                });
+                return `Response: ${data?.pages?.at(0)?.items?.at(0)?.message}`;
+              },
+            };
 
-    it('updates queries using static data', async () => {
-      network.mock('GET /items', {
-        status: 200,
-        data: { message: 'Frodo Baggins' },
-      });
-
-      const update = { message: 'Samwise Gamgee' };
-
-      const screen = render(() => (
-        <TestComponent
-          getRenderData={() => {
-            const { data } = useAPIQuery('GET /items', { filter: '' });
-            return `Response: ${data?.message}`;
-          }}
-          onPress={(cache) => {
-            cache.updateCache('GET /items', { filter: '' }, update);
-          }}
-        />
-      ));
-
-      await screen.findByText('Response: Frodo Baggins');
-
-      expect(client.request).toHaveBeenCalledTimes(1);
-
-      TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
-
-      // The update does not happen immediately.
-      await TestingLibrary.waitFor(() => {
-        expect(screen.getByTestId('render-data').textContent).toStrictEqual(
-          'Response: Samwise Gamgee',
+      const TestComponent: React.FC<{
+        getRenderData: () => string;
+        onPress: (cache: CacheUtils<TestEndpoints>) => void;
+      }> = ({ getRenderData, onPress }) => {
+        const cache = useAPICache();
+        const data = getRenderData();
+        return (
+          <>
+            <div data-testid="render-data">{data}</div>
+            <button onClick={() => onPress(cache)}>Update Cache</button>
+          </>
         );
+      };
+
+      beforeEach(() => {
+        network
+          .mock('GET /items', {
+            status: 200,
+            data: { message: 'Frodo Baggins' },
+          })
+          .mock('GET /list', {
+            status: 200,
+            data: {
+              items: [{ message: 'Frodo Baggins' }],
+            },
+          });
       });
 
-      // Confirm that another network call is not triggered.
-      expect(client.request).toHaveBeenCalledTimes(1);
-    });
+      it('updates queries using static data', async () => {
+        const update =
+          method === 'updateCache'
+            ? { message: 'Samwise Gamgee' }
+            : {
+                pages: [{ items: [{ message: 'Samwise Gamgee' }] }],
+                pageParams: [],
+              };
 
-    it('updates queries using a function when there is existing data', async () => {
-      network.mock('GET /items', {
-        status: 200,
-        data: { message: 'Frodo Baggins' },
+        const screen = render(() => (
+          <TestComponent
+            getRenderData={config.getRenderData}
+            onPress={(cache) => {
+              const updateMethod = cache[method];
+              // @ts-expect-error
+              updateMethod(config.route, { filter: '' }, update);
+            }}
+          />
+        ));
+
+        await screen.findByText('Response: Frodo Baggins');
+
+        expect(client.request).toHaveBeenCalledTimes(1);
+
+        TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+
+        // The update does not happen immediately.
+        await TestingLibrary.waitFor(() => {
+          expect(screen.getByTestId('render-data').textContent).toStrictEqual(
+            'Response: Samwise Gamgee',
+          );
+        });
+
+        // Confirm that another network call is not triggered.
+        expect(client.request).toHaveBeenCalledTimes(1);
       });
 
-      const screen = render(() => (
-        <TestComponent
-          getRenderData={() => {
-            const { data } = useAPIQuery('GET /items', { filter: '' });
-            return `Response: ${data?.message}`;
-          }}
-          onPress={(cache) => {
-            cache.updateCache('GET /items', { filter: '' }, () => ({
-              message: 'Samwise Gamgee',
-            }));
-          }}
-        />
-      ));
+      it('updates queries using a function when there is existing data', async () => {
+        const updater =
+          method === 'updateCache'
+            ? () => ({ message: 'Samwise Gamgee' })
+            : () => ({
+                pages: [{ items: [{ message: 'Samwise Gamgee' }] }],
+                pageParams: [],
+              });
 
-      await screen.findByText('Response: Frodo Baggins');
+        const screen = render(() => (
+          <TestComponent
+            getRenderData={config.getRenderData}
+            onPress={(cache) => {
+              const updateMethod = cache[method];
+              // @ts-expect-error
+              updateMethod(config.route, { filter: '' }, updater);
+            }}
+          />
+        ));
 
-      expect(client.request).toHaveBeenCalledTimes(1);
+        await screen.findByText('Response: Frodo Baggins');
 
-      TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+        expect(client.request).toHaveBeenCalledTimes(1);
 
-      // The update does not happen immediately.
-      await TestingLibrary.waitFor(() => {
-        expect(screen.getByTestId('render-data').textContent).toStrictEqual(
-          'Response: Samwise Gamgee',
-        );
+        TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+
+        // The update does not happen immediately.
+        await TestingLibrary.waitFor(() => {
+          expect(screen.getByTestId('render-data').textContent).toStrictEqual(
+            'Response: Samwise Gamgee',
+          );
+        });
+
+        expect(client.request).toHaveBeenCalledTimes(1);
       });
 
-      expect(client.request).toHaveBeenCalledTimes(1);
-    });
+      it('supports mutating the current value when using a function', async () => {
+        const updater =
+          method === 'updateCache'
+            ? (current: any) => {
+                current.message = 'Samwise Gamgee';
+              }
+            : (current: any) => {
+                current.pages.at(0).items.at(0).message = 'Samwise Gamgee';
+              };
 
-    it('supports mutating the current value when using a function', async () => {
-      network.mock('GET /items', {
-        status: 200,
-        data: { message: 'Frodo Baggins' },
+        const screen = render(() => (
+          <TestComponent
+            getRenderData={config.getRenderData}
+            onPress={(cache) => {
+              const updateMethod = cache[method];
+              // @ts-expect-error
+              updateMethod(config.route, { filter: '' }, updater);
+            }}
+          />
+        ));
+
+        await screen.findByText('Response: Frodo Baggins');
+
+        expect(client.request).toHaveBeenCalledTimes(1);
+
+        TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+
+        // The update does not happen immediately.
+        await TestingLibrary.waitFor(() => {
+          expect(screen.getByTestId('render-data').textContent).toStrictEqual(
+            'Response: Samwise Gamgee',
+          );
+        });
+
+        expect(client.request).toHaveBeenCalledTimes(1);
       });
 
-      const screen = render(() => (
-        <TestComponent
-          getRenderData={() => {
-            const { data } = useAPIQuery('GET /items', { filter: '' });
-            return `Response: ${data?.message}`;
-          }}
-          onPress={(cache) => {
-            cache.updateCache('GET /items', { filter: '' }, (current) => {
-              current.message = 'Samwise Gamgee';
-            });
-          }}
-        />
-      ));
+      it('does nothing when a function update is passed, but there is no data', async () => {
+        network.reset();
 
-      await screen.findByText('Response: Frodo Baggins');
+        const updateFn = jest.fn();
+        const screen = render(() => (
+          <TestComponent
+            getRenderData={() => {
+              return 'Response: nothing';
+            }}
+            onPress={(cache) => {
+              const updateMethod = cache[method];
+              // @ts-expect-error
+              updateMethod(config.route, { filter: '' }, updateFn);
+            }}
+          />
+        ));
 
-      expect(client.request).toHaveBeenCalledTimes(1);
+        await screen.findByText('Response: nothing');
 
-      TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+        expect(client.request).toHaveBeenCalledTimes(0);
 
-      // The update does not happen immediately.
-      await TestingLibrary.waitFor(() => {
-        expect(screen.getByTestId('render-data').textContent).toStrictEqual(
-          'Response: Samwise Gamgee',
-        );
+        TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+
+        expect(client.request).toHaveBeenCalledTimes(0);
+
+        expect(updateFn).not.toHaveBeenCalled();
       });
-
-      expect(client.request).toHaveBeenCalledTimes(1);
-    });
-
-    it('does nothing when a function update is passed, but there is no data', async () => {
-      const updateFn = jest.fn();
-      const screen = render(() => (
-        <TestComponent
-          getRenderData={() => {
-            return 'Response: nothing';
-          }}
-          onPress={(cache) => {
-            cache.updateCache('GET /items', { filter: '' }, updateFn);
-          }}
-        />
-      ));
-
-      await screen.findByText('Response: nothing');
-
-      expect(client.request).toHaveBeenCalledTimes(0);
-
-      TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
-
-      expect(client.request).toHaveBeenCalledTimes(0);
-
-      expect(updateFn).not.toHaveBeenCalled();
     });
   });
 });

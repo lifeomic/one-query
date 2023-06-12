@@ -455,6 +455,18 @@ cache.updateCache(
 );
 ```
 
+When dealing with a cache entry that was initiated via `useInfiniteAPIQuery` (paginated) prefer using `updateInfiniteCache` which otherwise behaves the same as `updateCache`
+
+```typescript
+const cache = useAPICache();
+
+cache.updateInfiniteCache(
+  'GET /list',
+  { filter: 'some-filter' },
+  (current) => {...},
+);
+```
+
 **Note**: if performing a programmatic update, _no update will occur_ if there is not a cached value.
 
 ## Test Utility API Reference
