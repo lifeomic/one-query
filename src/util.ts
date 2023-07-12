@@ -88,16 +88,19 @@ export type InternalQueryKey = {
   name: string;
   route: string;
   payload: unknown;
+  infinite: boolean;
 };
 
-export const createQueryKey = (
-  name: string,
-  route: string,
-  payload: unknown,
-): InternalQueryKey => ({ name, route, payload });
+export const createQueryKey = (options: {
+  name: string;
+  route: string;
+  payload: unknown;
+  infinite: boolean;
+}): InternalQueryKey => options;
 
 export const isInternalQueryKey = (key: any): key is InternalQueryKey =>
   typeof key === 'object' &&
   'name' in key &&
   'route' in key &&
-  'payload' in key;
+  'payload' in key &&
+  'infinite' in key;

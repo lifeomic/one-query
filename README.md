@@ -257,6 +257,8 @@ query.fetchNextPage({
 });
 ```
 
+**Note**: Infinite queries are cached _separately_ from regular queries against the same endpoint + payload. For more details on working with infinite query caches, see [`useAPICache`](#useapicache).
+
 ### `useAPIMutation`
 
 Type-safe wrapper around `useMutation` from `react-query`.
@@ -404,6 +406,8 @@ cache.invalidateQueries({
 });
 ```
 
+**Note**: To invalidate infinite queries, use [`invalidateInfiniteQueries`](#invalidateinfinitequeries).
+
 #### `resetQueries`
 
 Resets queries using `react-query`'s [`resetQueries`](https://tanstack.com/query/v4/docs/reference/QueryClient#queryclientresetqueries).
@@ -417,6 +421,8 @@ cache.resetQueries({
   'GET /messages': 'all',
 });
 ```
+
+**Note**: To reset infinite queries, use [`resetInfiniteQueries`](#resetinfinitequeries).
 
 #### `updateCache`
 
@@ -455,19 +461,60 @@ cache.updateCache(
 );
 ```
 
-When dealing with a cache entry that was initiated via `useInfiniteAPIQuery` (paginated) prefer using `updateInfiniteCache` which otherwise behaves the same as `updateCache`
+**Note**: If performing a programmatic update, _no update will occur_ if there is not a cached value.
+
+**Note**: To update infinite query cache entries, use [`updateInfiniteCache`](#updateinfinitecache).
+
+#### `invalidateInfiniteQueries`
+
+Performs invalidaton of infinite queries.
+
+This API behaves identically to [`invalidateQueries`](#invalidatequeries).
+
+```typescript
+const cache = useAPICache();
+
+// Invalidates any `GET /messages` infinite queries that specify `{ filter: 'some-filter' }` as the payload.
+cache.invalidateInfiniteQueries({
+  'GET /messages': { filter: 'some-filter' },
+});
+```
+
+#### `resetInfiniteQueries`
+
+Performs invalidaton of infinite queries.
+
+This API behaves identically to [`resetQueries`](#resetqueries).
+
+```typescript
+const cache = useAPICache();
+
+// Resets any infinite `GET /messages` queries that specify `{ filter: 'some-filter' }` as the payload.
+cache.resetInfiniteQueries({
+  'GET /messages': { filter: 'some-filter' },
+});
+```
+
+#### `updateInfiniteCache`
+
+Performs invalidaton of infinite queries.
+
+This API behaves identically to [`updateCache`](#updatecache).
 
 ```typescript
 const cache = useAPICache();
 
 cache.updateInfiniteCache(
-  'GET /list',
+  'GET /messages',
   { filter: 'some-filter' },
-  (current) => {...},
+  (current) => {
+    current.pages.push([
+      { id: 'message-id-new', content: 'new message content' },
+    ]);
+    // ...
+  },
 );
 ```
-
-**Note**: if performing a programmatic update, _no update will occur_ if there is not a cached value.
 
 ## Test Utility API Reference
 

@@ -1,6 +1,9 @@
 import * as React from 'react';
 import * as TestingLibrary from '@testing-library/react';
-import { useQuery as useReactQuery } from '@tanstack/react-query';
+import {
+  useQuery as useReactQuery,
+  useInfiniteQuery as useInfiniteReactQuery,
+} from '@tanstack/react-query';
 import axios from 'axios';
 import { createAPIHooks } from './hooks';
 import { createAPIMockingUtility } from './test-utils';
@@ -549,7 +552,7 @@ describe('useAPICache', () => {
           );
         };
 
-        it('invalidates infinite queries', async () => {
+        it('does not invalidate infinite queries', async () => {
           const screen = render(() => (
             <TestComponent
               getRenderData={() => {
@@ -588,11 +591,14 @@ describe('useAPICache', () => {
             screen.getByTestId('invalidate-button'),
           );
 
+          // Wait, to ensure another call does not happen.
+          await wait(150);
+
           await TestingLibrary.waitFor(() => {
             expect(screen.getByTestId('text').textContent).toStrictEqual(
-              'Response: 2',
+              'Response: 1',
             );
-            expect(client.request).toHaveBeenCalledTimes(2);
+            expect(client.request).toHaveBeenCalledTimes(1);
           });
 
           screen.rerender(
@@ -626,9 +632,9 @@ describe('useAPICache', () => {
 
           await TestingLibrary.waitFor(() => {
             expect(screen.getByTestId('text').textContent).toStrictEqual(
-              'Response: 3',
+              'Response: 1',
             );
-            expect(client.request).toHaveBeenCalledTimes(3);
+            expect(client.request).toHaveBeenCalledTimes(1);
           });
         });
 
@@ -864,6 +870,349 @@ describe('useAPICache', () => {
       });
     });
   });
+
+  (['resetInfiniteQueries', 'invalidateInfiniteQueries'] as const).forEach(
+    (method) => {
+      describe(`${method}`, () => {
+        beforeEach(() => {
+          // Mock a bunch of different requests to help us confirm render count.
+          const messages = [
+            { message: '1' },
+            { message: '2' },
+            { message: '3' },
+          ];
+          network.mockOrdered(
+            'GET /list',
+            messages.map((item) => ({ status: 200, data: { items: [item] } })),
+          );
+        });
+        type TestComponentProps = {
+          getRenderData: () => string;
+
+          onPress: (
+            invalidate: CacheUtils<TestEndpoints>[typeof method],
+          ) => void;
+        };
+
+        const TestComponent: React.FC<TestComponentProps> = ({
+          getRenderData,
+          onPress,
+        }) => {
+          const cache = useAPICache();
+          const data = getRenderData();
+          return (
+            <>
+              <button
+                data-testid="invalidate-button"
+                onClick={() => onPress(cache[method])}
+              >
+                Invalidate
+              </button>
+              <div data-testid="text">{data}</div>
+            </>
+          );
+        };
+
+        it('does not invalidate normal queries', async () => {
+          const screen = render(() => (
+            <TestComponent
+              getRenderData={() => {
+                const { data } = useAPIQuery(
+                  'GET /list',
+                  { filter: 'some-filter' },
+                  { cacheTime: Infinity },
+                );
+
+                const first = data?.items?.[0].message;
+                return `Response: ${first || 'undefined'}`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /list': (variables) =>
+                    variables.filter === 'some-filter',
+                });
+              }}
+            />
+          ));
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 1',
+            );
+          });
+
+          expect(client.request).toHaveBeenCalledTimes(1);
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          // Wait, to ensure another call does not happen.
+          await wait(150);
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 1',
+            );
+            expect(client.request).toHaveBeenCalledTimes(1);
+          });
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          // Wait, to ensure another call does not happen.
+          await wait(150);
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 1',
+            );
+            expect(client.request).toHaveBeenCalledTimes(1);
+          });
+        });
+
+        it('invalidates matching queries based on static match', async () => {
+          const variables: RequestPayloadOf<TestEndpoints, 'GET /list'> = {
+            filter: 'some-filter',
+          };
+
+          const screen = render(() => (
+            <TestComponent
+              getRenderData={() => {
+                const { data } = useInfiniteAPIQuery('GET /list', variables, {
+                  cacheTime: Infinity,
+                });
+
+                const first = data?.pages.at(0)?.items.at(0)?.message;
+                return `Response: ${first || 'undefined'}`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /list': [variables],
+                });
+              }}
+            />
+          ));
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 1',
+            );
+          });
+
+          expect(client.request).toHaveBeenCalledTimes(1);
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 2',
+            );
+            expect(client.request).toHaveBeenCalledTimes(2);
+          });
+        });
+
+        it('invalidates matching queries based on predicate match', async () => {
+          const screen = render(() => (
+            <TestComponent
+              getRenderData={() => {
+                const { data } = useInfiniteAPIQuery(
+                  'GET /list',
+                  { filter: 'some-filter' },
+                  { cacheTime: Infinity },
+                );
+
+                const first = data?.pages.at(0)?.items.at(0)?.message;
+                return `Response: ${first || 'undefined'}`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /list': (variables) =>
+                    variables.filter === 'some-filter',
+                });
+              }}
+            />
+          ));
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 1',
+            );
+          });
+
+          expect(client.request).toHaveBeenCalledTimes(1);
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Response: 2',
+            );
+            expect(client.request).toHaveBeenCalledTimes(2);
+          });
+        });
+
+        it('invalidates all queries when "all" is used', async () => {
+          network.reset();
+          network.mockOrdered('GET /list', [
+            { status: 200, data: { items: [{ message: '1' }] } },
+            { status: 200, data: { items: [{ message: '1' }] } },
+            { status: 200, data: { items: [{ message: '2' }] } },
+            { status: 200, data: { items: [{ message: '2' }] } },
+          ]);
+          const screen = render(() => (
+            <TestComponent
+              getRenderData={() => {
+                const first = useInfiniteAPIQuery(
+                  'GET /list',
+                  { filter: 'some-filter' },
+                  { cacheTime: Infinity },
+                );
+
+                const second = useInfiniteAPIQuery(
+                  'GET /list',
+                  { filter: 'some-other-filter' },
+                  { cacheTime: Infinity },
+                );
+
+                const firstMessage = first.data?.pages
+                  .at(0)
+                  ?.items.at(0)?.message;
+                const secondMessage = second.data?.pages
+                  .at(0)
+                  ?.items.at(0)?.message;
+
+                return `Responses: ${firstMessage || 'undefined'} ${
+                  secondMessage || 'undefined'
+                }`;
+              }}
+              onPress={(invalidate) => {
+                invalidate({
+                  'GET /list': 'all',
+                });
+              }}
+            />
+          ));
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Responses: 1 1',
+            );
+          });
+
+          expect(client.request).toHaveBeenCalledTimes(2);
+
+          TestingLibrary.fireEvent.click(
+            screen.getByTestId('invalidate-button'),
+          );
+
+          await TestingLibrary.waitFor(() => {
+            expect(screen.getByTestId('text').textContent).toStrictEqual(
+              'Responses: 2 2',
+            );
+            expect(client.request).toHaveBeenCalledTimes(4);
+          });
+        });
+
+        const wait = (ms: number) =>
+          new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+        const NON_INVALIDATION_SCENARIOS: {
+          it: string;
+          invalidate: EndpointInvalidationMap<TestEndpoints>;
+          getRenderData?: () => string;
+        }[] = [
+          {
+            it: 'does not invalidate queries that do not match static config',
+            invalidate: {
+              'GET /list': [{ filter: 'some-other-filter' }],
+            },
+          },
+          {
+            it: 'does not invalidate queries that do not match predicate config',
+            invalidate: {
+              'GET /list': (variables) =>
+                variables.filter === 'some-other-filter',
+            },
+          },
+          {
+            it: 'does not invalidate query if the endpoint is not specified',
+            invalidate: {},
+          },
+          {
+            it: 'does not invalidate queries that were not created by the shared hooks',
+            invalidate: {
+              'GET /list': 'all',
+            },
+            getRenderData: () => {
+              const { data } = useInfiniteReactQuery(['some-other-key'], () =>
+                client.request({
+                  method: 'GET',
+                  url: '/list',
+                  params: { filter: 'some-filter' },
+                }),
+              );
+
+              return `Response: ${data?.pages.length || 'undefined'}`;
+            },
+          },
+        ];
+
+        NON_INVALIDATION_SCENARIOS.forEach(
+          ({ it: name, invalidate: spec, getRenderData }) => {
+            it(`${name}`, async () => {
+              const screen = render(() => (
+                <TestComponent
+                  getRenderData={
+                    getRenderData ??
+                    (() => {
+                      const { data } = useInfiniteAPIQuery(
+                        'GET /list',
+                        { filter: 'some-filter' },
+                        { cacheTime: Infinity },
+                      );
+
+                      const first = data?.pages.at(0)?.items.at(0)?.message;
+                      return `Response: ${first || 'undefined'}`;
+                    })
+                  }
+                  onPress={(invalidate) => {
+                    invalidate(spec);
+                  }}
+                />
+              ));
+
+              await TestingLibrary.waitFor(() => {
+                expect(screen.getByTestId('text').textContent).toStrictEqual(
+                  'Response: 1',
+                );
+              });
+
+              expect(client.request).toHaveBeenCalledTimes(1);
+
+              TestingLibrary.fireEvent.click(
+                screen.getByTestId('invalidate-button'),
+              );
+
+              await wait(150);
+
+              // Assert response unchanged.
+              expect(screen.getByTestId('text').textContent).toStrictEqual(
+                'Response: 1',
+              );
+              // Assert no additional queries.
+              expect(client.request).toHaveBeenCalledTimes(1);
+            });
+          },
+        );
+      });
+    },
+  );
 
   (['updateCache', 'updateInfiniteCache'] as const).forEach((method) => {
     describe(`${method}`, () => {

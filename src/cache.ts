@@ -12,10 +12,15 @@ import { InternalQueryKey, isInternalQueryKey } from './util';
 
 const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
   endpoints: EndpointInvalidationMap<Endpoints>,
+  options: { infinite: boolean },
 ): QueryFilters => ({
   predicate: (query) =>
     query.queryKey.some((entry) => {
       if (!isInternalQueryKey(entry)) {
+        return false;
+      }
+
+      if (entry.infinite !== options.infinite) {
         return false;
       }
 
@@ -43,21 +48,20 @@ const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
     }),
 });
 
-export const INFINITE_QUERY_KEY = 'infinite' as const;
-
 export const createCacheUtils = <Endpoints extends RoughEndpoints>(
   client: QueryClient,
   makeQueryKey: <Route extends keyof Endpoints & string>(
     route: Route,
     payload: RequestPayloadOf<Endpoints, Route>,
+    infinite: boolean,
   ) => InternalQueryKey,
 ): CacheUtils<Endpoints> => {
-  const updateCache: (
-    keyPrefix?: typeof INFINITE_QUERY_KEY,
-  ) => CacheUtils<Endpoints>['updateCache'] =
-    (keyPrefix) => (route, payload, updater) => {
+  const updateCache: (options: {
+    infinite: boolean;
+  }) => CacheUtils<Endpoints>['updateCache'] =
+    (options) => (route, payload, updater) => {
       client.setQueryData<Endpoints[typeof route]['Response']>(
-        [keyPrefix, makeQueryKey(route, payload)].filter(Boolean),
+        [makeQueryKey(route, payload, options.infinite)],
         typeof updater !== 'function'
           ? updater
           : (current) => {
@@ -76,12 +80,26 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
 
   return {
     invalidateQueries: (spec) => {
-      void client.invalidateQueries(createQueryFilterFromSpec(spec));
+      void client.invalidateQueries(
+        createQueryFilterFromSpec(spec, { infinite: false }),
+      );
     },
     resetQueries: (spec) => {
-      void client.resetQueries(createQueryFilterFromSpec(spec));
+      void client.resetQueries(
+        createQueryFilterFromSpec(spec, { infinite: false }),
+      );
     },
-    updateCache: updateCache(),
-    updateInfiniteCache: updateCache(INFINITE_QUERY_KEY),
+    invalidateInfiniteQueries: (spec) => {
+      void client.invalidateQueries(
+        createQueryFilterFromSpec(spec, { infinite: true }),
+      );
+    },
+    resetInfiniteQueries: (spec) => {
+      void client.resetQueries(
+        createQueryFilterFromSpec(spec, { infinite: true }),
+      );
+    },
+    updateCache: updateCache({ infinite: false }),
+    updateInfiniteCache: updateCache({ infinite: true }),
   };
 };

@@ -7,7 +7,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { AxiosInstance } from 'axios';
-import { createCacheUtils, INFINITE_QUERY_KEY } from './cache';
+import { createCacheUtils } from './cache';
 import { combineQueries } from './combination';
 import { APIQueryHooks, RoughEndpoints } from './types';
 import { APIClient, createQueryKey } from './util';
@@ -24,7 +24,9 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
   const client = new APIClient<Endpoints>(axiosClient);
   return {
     useAPIQuery: (route, payload, options) => {
-      const queryKey: QueryKey = [createQueryKey(name, route, payload)];
+      const queryKey: QueryKey = [
+        createQueryKey({ name, route, payload, infinite: false }),
+      ];
       return useQuery(
         queryKey,
         () =>
@@ -36,8 +38,7 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
     },
     useInfiniteAPIQuery: (route, initPayload, options) => {
       const queryKey: QueryKey = [
-        INFINITE_QUERY_KEY,
-        createQueryKey(name, route, initPayload),
+        createQueryKey({ name, route, payload: initPayload, infinite: true }),
       ];
       const query = useInfiniteQuery(
         queryKey,
@@ -65,12 +66,12 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       ),
     useCombinedAPIQueries: (...routes) => {
       const queries = useQueries({
-        queries: routes.map(([endpoint, payload, options]) => ({
+        queries: routes.map(([route, payload, options]) => ({
           ...options,
-          queryKey: [createQueryKey(name, endpoint, payload)],
+          queryKey: [createQueryKey({ name, route, payload, infinite: false })],
           queryFn: () =>
             client
-              .request(endpoint, payload, options?.axios)
+              .request(route, payload, options?.axios)
               .then((res) => res.data),
         })),
       });
@@ -83,8 +84,8 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
     },
     useAPICache: () => {
       const client = useQueryClient();
-      return createCacheUtils(client, (route, payload) =>
-        createQueryKey(name, route, payload),
+      return createCacheUtils(client, (route, payload, infinite) =>
+        createQueryKey({ name, route, payload, infinite }),
       );
     },
   };

@@ -118,6 +118,10 @@ export type CacheUtils<Endpoints extends RoughEndpoints> = {
 
   resetQueries: (spec: EndpointInvalidationMap<Endpoints>) => void;
 
+  invalidateInfiniteQueries: (spec: EndpointInvalidationMap<Endpoints>) => void;
+
+  resetInfiniteQueries: (spec: EndpointInvalidationMap<Endpoints>) => void;
+
   updateCache: <Route extends keyof Endpoints & string>(
     route: Route,
     payload: RequestPayloadOf<Endpoints, Route>,
