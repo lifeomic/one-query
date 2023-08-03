@@ -1,5 +1,8 @@
 This package helps you use [`react-query`](https://tanstack.com/query) with a REST API, and get type safety everywhere.
 
+Assumption: it assumes a developer is familiar with `react-query`'s concept, API
+and its [document](https://tanstack.com/query/latest/docs/react/overview).
+
 ## Installation
 
 ```
@@ -210,15 +213,17 @@ Queries are cached using a combination of `route name + payload`. So, in the exa
 
 ### `useInfiniteAPIQuery`
 
-Type-safe wrapper around `useInfiniteQuery` from `react-query` which has a similar api as `useQuery` with a few key differences.
+Type-safe wrapper around [`useInfiniteQuery`](https://tanstack.com/query/latest/docs/react/reference/useInfiniteQuery) from `react-query` which has a similar api as `useQuery` with a few key differences.
 
 ```tsx
 const query = useInfiniteAPIQuery(
   'GET /list',
   {
+    // after is the token name in query string for the next page to return.
     after: undefined,
   },
   {
+    // passes the pagination token from request body to query string "after"
     getNextPageParam: (lastPage) => ({ after: lastPage.next }),
     getPreviousPageParam: (firstPage) => ({ before: firstPage.previous }),
   },
@@ -238,7 +243,8 @@ const query = useInfiniteAPIQuery(
 
 The return value of this hook is identical to the behavior of the `react-query` `useInfiniteQuery` hook's return value where `data` holds an array of pages.
 
-When returning `undefined` from `getNextPageParam` it will set `query.hasNextPage` to false, otherwise it will merge the next api request payload with the returned object, likewise for `getPreviousPageParam` and `query.hasPreviousPage`.
+When returning `undefined` from `getNextPageParam` it will set `query.hasNextPage` to false, otherwise it will merge the next api request payload with the returned object, likewise for `getPreviousPageParam` and `query.hasPreviousPage`. This is useful to pass pagination token from previous page since the current implementation provides a default `queryFn` assumes such token
+is required over query string. It may need another queryFn if the pagination token is managed via headers.
 
 ```tsx
 {
