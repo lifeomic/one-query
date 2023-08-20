@@ -11,19 +11,33 @@ import { createCacheUtils, INFINITE_QUERY_KEY } from './cache';
 import { combineQueries } from './combination';
 import { APIQueryHooks, RoughEndpoints } from './types';
 import { APIClient, createQueryKey } from './util';
+import { useClient } from './client-provider';
 
 export type CreateAPIQueryHooksOptions = {
   name: string;
-  client: AxiosInstance;
+  client?: AxiosInstance;
 };
 
 export const createAPIHooks = <Endpoints extends RoughEndpoints>({
   name,
-  client: axiosClient,
+  client: clientFromProps,
 }: CreateAPIQueryHooksOptions): APIQueryHooks<Endpoints> => {
-  const client = new APIClient<Endpoints>(axiosClient);
+  const useResolvedClient = () => {
+    const clientFromContext = useClient();
+
+    const resolvedAxiosClient = clientFromProps ?? clientFromContext;
+
+    if (!resolvedAxiosClient) {
+      throw new Error(
+        'Attempted to use a one-query hook when a client was not specified. A client must be specified in `createAPIHooks` or via a `ClientProvider`.',
+      );
+    }
+    return new APIClient<Endpoints>(resolvedAxiosClient);
+  };
+
   return {
     useAPIQuery: (route, payload, options) => {
+      const client = useResolvedClient();
       const queryKey: QueryKey = [createQueryKey(name, route, payload)];
       return useQuery(
         queryKey,
@@ -35,6 +49,7 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       );
     },
     useInfiniteAPIQuery: (route, initPayload, options) => {
+      const client = useResolvedClient();
       const queryKey: QueryKey = [
         INFINITE_QUERY_KEY,
         createQueryKey(name, route, initPayload),
@@ -58,12 +73,17 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
 
       return query;
     },
-    useAPIMutation: (route, options) =>
-      useMutation(
+    useAPIMutation: (route, options) => {
+      const client = useResolvedClient();
+
+      return useMutation(
         (payload) => client.request(route, payload).then((res) => res.data),
         options,
-      ),
+      );
+    },
     useCombinedAPIQueries: (...routes) => {
+      const client = useResolvedClient();
+
       const queries = useQueries({
         queries: routes.map(([endpoint, payload, options]) => ({
           ...options,
