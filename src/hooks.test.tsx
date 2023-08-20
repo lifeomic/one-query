@@ -1,7 +1,7 @@
 import * as React from 'react';
 import * as TestingLibrary from '@testing-library/react';
 import { useQuery as useReactQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { createAPIHooks } from './hooks';
 import { createAPIMockingUtility } from './test-utils';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -1052,5 +1052,46 @@ describe('useAPICache', () => {
         expect(updateFn).not.toHaveBeenCalled();
       });
     });
+  });
+});
+
+test('passing a function for `client` is supported', async () => {
+  const TestContext = React.createContext<AxiosInstance | undefined>(undefined);
+
+  const { useAPIQuery } = createAPIHooks<TestEndpoints>({
+    name: 'test-name',
+    client: () => {
+      const client = React.useContext(TestContext);
+      if (!client) {
+        throw new Error('no client specified');
+      }
+      return client;
+    },
+  });
+
+  const TestComponent: React.FC = () => {
+    const query = useAPIQuery('GET /items', { filter: 'test-filter' });
+    return <>{query.data?.message}</>;
+  };
+
+  network.mock('GET /items', {
+    status: 200,
+    data: { message: 'test-message-2' },
+  });
+
+  const screen = TestingLibrary.render(<TestComponent />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>
+        <TestContext.Provider
+          value={axios.create({ baseURL: 'https://www.lifeomic.com' })}
+        >
+          {children}
+        </TestContext.Provider>
+      </QueryClientProvider>
+    ),
+  });
+
+  await TestingLibrary.waitFor(() => {
+    expect(screen.queryAllByText('test-message-2')).toBeDefined();
   });
 });

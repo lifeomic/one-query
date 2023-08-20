@@ -179,6 +179,17 @@ export const {
 } = hooks;
 ```
 
+If you'd like to define your Axios client in some other way (e.g. using React Context and/or hooks), you can specify a _function_ for getting the client. It is safe to use React hooks within this function -- it will be called according to the rules of hooks:
+
+```typescript
+const hooks = createAPIHooks<APIEndpoints>({
+  name: 'my-api',
+  client: () => {
+    return useMyClient();
+  },
+});
+```
+
 ### `useAPIQuery`
 
 Type-safe wrapper around `useQuery` from `react-query`.
