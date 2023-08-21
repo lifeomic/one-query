@@ -14,16 +14,27 @@ import { APIClient, createQueryKey } from './util';
 
 export type CreateAPIQueryHooksOptions = {
   name: string;
-  client: AxiosInstance;
+  /**
+   * An Axios client, or a function for retrieving one. This function can
+   * call React hooks -- it will be called according to the rules of hooks.
+   */
+  client: AxiosInstance | (() => AxiosInstance);
 };
 
 export const createAPIHooks = <Endpoints extends RoughEndpoints>({
   name,
   client: axiosClient,
 }: CreateAPIQueryHooksOptions): APIQueryHooks<Endpoints> => {
-  const client = new APIClient<Endpoints>(axiosClient);
+  const useClient = () =>
+    new APIClient<Endpoints>(
+      // Since AxiosInstances themselves are functions, check for the `.get(...)`
+      // property to determine if this is a client, or a function to return a client.
+      'get' in axiosClient ? axiosClient : axiosClient(),
+    );
+
   return {
     useAPIQuery: (route, payload, options) => {
+      const client = useClient();
       const queryKey: QueryKey = [createQueryKey(name, route, payload)];
       return useQuery(
         queryKey,
@@ -35,6 +46,7 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       );
     },
     useInfiniteAPIQuery: (route, initPayload, options) => {
+      const client = useClient();
       const queryKey: QueryKey = [
         INFINITE_QUERY_KEY,
         createQueryKey(name, route, initPayload),
@@ -58,12 +70,17 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
 
       return query;
     },
-    useAPIMutation: (route, options) =>
-      useMutation(
+    useAPIMutation: (route, options) => {
+      const client = useClient();
+
+      return useMutation(
         (payload) => client.request(route, payload).then((res) => res.data),
         options,
-      ),
+      );
+    },
     useCombinedAPIQueries: (...routes) => {
+      const client = useClient();
+
       const queries = useQueries({
         queries: routes.map(([endpoint, payload, options]) => ({
           ...options,
