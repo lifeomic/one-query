@@ -52,15 +52,20 @@ export type RequestPayloadOf<
   Route extends keyof Endpoints,
 > = Endpoints[Route]['Request'] & PathParamsOf<Route>;
 
-type RestrictedUseQueryOptions<Response> = Omit<
-  UseQueryOptions<Response, unknown>,
-  'queryKey' | 'queryFn'
-> & {
+type RestrictedUseQueryOptions<
+  Response,
+  TError = unknown,
+  Data = Response,
+> = Omit<UseQueryOptions<Response, TError, Data>, 'queryKey' | 'queryFn'> & {
   axios?: AxiosRequestConfig;
 };
 
-type RestrictedUseInfiniteQueryOptions<Response, Request> = Omit<
-  UseInfiniteQueryOptions<Response, unknown>,
+type RestrictedUseInfiniteQueryOptions<
+  Response,
+  Request,
+  Data = Response,
+> = Omit<
+  UseInfiniteQueryOptions<Response, unknown, Data>,
   'queryKey' | 'queryFn' | 'getNextPageParam' | 'getPreviousPageParam'
 > & {
   axios?: AxiosRequestConfig;
@@ -132,11 +137,18 @@ export type CacheUtils<Endpoints extends RoughEndpoints> = {
 };
 
 export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
-  useAPIQuery: <Route extends keyof Endpoints & string>(
+  useAPIQuery: <
+    Route extends keyof Endpoints & string,
+    Data = Endpoints[Route]['Response'],
+  >(
     route: Route,
     payload: RequestPayloadOf<Endpoints, Route>,
-    options?: RestrictedUseQueryOptions<Endpoints[Route]['Response']>,
-  ) => UseQueryResult<Endpoints[Route]['Response']>;
+    options?: RestrictedUseQueryOptions<
+      Endpoints[Route]['Response'],
+      unknown,
+      Data
+    >,
+  ) => UseQueryResult<Data>;
 
   useInfiniteAPIQuery: <Route extends keyof Endpoints & string>(
     route: Route,

@@ -119,6 +119,30 @@ describe('useAPIQuery', () => {
       );
     });
   });
+
+  test('using select(...) works and is typed correctly', async () => {
+    network.mock('GET /items', {
+      status: 200,
+      data: { message: 'test-message' },
+    });
+
+    const screen = render(() => {
+      const query = useAPIQuery(
+        'GET /items',
+        { filter: 'test-filter' },
+        { select: (data) => data.message },
+      );
+
+      // This line implicitly asserts that `query.data` is typed as string.
+      query.data?.codePointAt(0);
+
+      return <div data-testid="content">{query.data || ''}</div>;
+    });
+
+    await TestingLibrary.waitFor(() => {
+      expect(screen.queryByText('test-message')).toBeDefined();
+    });
+  });
 });
 
 describe('useInfiniteAPIQuery', () => {
