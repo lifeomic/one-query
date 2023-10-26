@@ -1,5 +1,5 @@
-import * as msw from 'msw';
-import { setupServer, SetupServerApi } from 'msw/node';
+import { http, HttpResponse } from 'msw';
+import { setupServer, SetupServer } from 'msw/node';
 import { PathParamsOf, RoughEndpoints } from './types';
 
 export type APIMockerResponse<T> =
@@ -31,6 +31,14 @@ type MockFunction<Endpoints extends RoughEndpoints> = <
     | APIMockerResponse<Endpoints[Route]['Response']>
     | MockRequestHandler<Endpoints, Route>,
 ) => APIMocker<Endpoints>;
+
+const gatherHeaders = (headers: Headers) => {
+  const headersObj: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    headersObj[key] = value;
+  });
+  return headersObj;
+};
 
 export type APIMocker<Endpoints extends RoughEndpoints> = {
   /**
@@ -76,7 +84,7 @@ export type APIMocker<Endpoints extends RoughEndpoints> = {
 };
 
 export const createAPIMocker = <Endpoints extends RoughEndpoints>(
-  server: SetupServerApi,
+  server: SetupServer,
   baseUrl: string,
 ): APIMocker<Endpoints> => {
   const api: APIMocker<Endpoints> = {} as any;
@@ -94,51 +102,53 @@ export const createAPIMocker = <Endpoints extends RoughEndpoints>(
         | 'post';
 
       server.use(
-        msw.rest[lowercaseMethod](`${baseUrl}${url}`, async (req, res, ctx) => {
-          const resolve = options.once ? res.once : res;
-
-          if (typeof handlerOrResponse !== 'function') {
-            return resolve(
-              ctx.status(handlerOrResponse.status),
-              ctx.json(handlerOrResponse.data),
-            );
-          }
-
-          const mockRequest = {
-            headers: req.headers.all(),
-            params: req.params as PathParamsOf<typeof route>,
-          };
-
-          let mockedResponse: APIMockerResponse<
-            Endpoints[typeof route]['Response']
-          >;
-
-          if (['get', 'delete'].includes(lowercaseMethod)) {
-            const query: Record<string, string> = {};
-            for (const [key, value] of req.url.searchParams.entries()) {
-              query[key] = value;
+        http[lowercaseMethod](
+          `${baseUrl}${url}`,
+          async ({ params, request }) => {
+            if (typeof handlerOrResponse !== 'function') {
+              return HttpResponse.json(handlerOrResponse.data, {
+                status: handlerOrResponse.status,
+              });
             }
-            // @ts-expect-error TypeScript isn't smart enough to narrow down
-            // the GET/DELETE case here.
-            mockedResponse = await handlerOrResponse({
-              ...mockRequest,
-              query,
-            });
-          } else {
-            const body = await req.json();
-            // @ts-expect-error TypeScript isn't smart enough to narrow down
-            // the GET/DELETE case here.
-            mockedResponse = await handlerOrResponse({
-              ...mockRequest,
-              body,
-            });
-          }
 
-          return resolve(
-            ctx.status(mockedResponse.status),
-            ctx.json(mockedResponse.data),
-          );
-        }),
+            const mockRequest = {
+              headers: gatherHeaders(request.headers),
+              params: params as PathParamsOf<typeof route>,
+            };
+
+            let mockedResponse: APIMockerResponse<
+              Endpoints[typeof route]['Response']
+            >;
+
+            if (['get', 'delete'].includes(lowercaseMethod)) {
+              const query: Record<string, string> = {};
+              for (const [key, value] of new URL(
+                request.url,
+              ).searchParams.entries()) {
+                query[key] = value;
+              }
+              // @ts-expect-error TypeScript isn't smart enough to narrow down
+              // the GET/DELETE case here.
+              mockedResponse = await handlerOrResponse({
+                ...mockRequest,
+                query,
+              });
+            } else {
+              const body = await request.json();
+              // @ts-expect-error TypeScript isn't smart enough to narrow down
+              // the GET/DELETE case here.
+              mockedResponse = await handlerOrResponse({
+                ...mockRequest,
+                body,
+              });
+            }
+
+            return HttpResponse.json(mockedResponse.data, {
+              status: mockedResponse.status,
+            });
+          },
+          { once: options.once },
+        ),
       );
 
       return api;

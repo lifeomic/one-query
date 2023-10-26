@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 import axios from 'axios';
 import { v4 } from 'uuid';
 import { createAPIMockingUtility } from './test-utils';
