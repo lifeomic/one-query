@@ -1,6 +1,23 @@
-import * as msw from 'msw';
-import { setupServer, SetupServerApi } from 'msw/node';
+import { RequestHandler, rest } from 'msw';
+/**
+ * Important: we need to avoid import actual values from these imports:
+ * - 'msw/node'
+ * - 'msw/native'
+ *
+ * Why: importing from those platform-specific modules can cause import-time
+ * failures for consumers that are using a different platform.
+ *
+ * It's okay to import _types_ from those paths, but not values.
+ */
+import type { SetupServer } from 'msw/node';
 import { PathParamsOf, RoughEndpoints } from './types';
+
+// This type is the "least common denominator" between the Node
+// and browser variants of MSW.
+type MSWUsable = {
+  use: (...handlers: RequestHandler[]) => void;
+  resetHandlers: () => void;
+};
 
 export type APIMockerResponse<T> =
   | { status: 200; data: T }
@@ -76,7 +93,7 @@ export type APIMocker<Endpoints extends RoughEndpoints> = {
 };
 
 export const createAPIMocker = <Endpoints extends RoughEndpoints>(
-  server: SetupServerApi,
+  server: MSWUsable,
   baseUrl: string,
 ): APIMocker<Endpoints> => {
   const api: APIMocker<Endpoints> = {} as any;
@@ -94,7 +111,7 @@ export const createAPIMocker = <Endpoints extends RoughEndpoints>(
         | 'post';
 
       server.use(
-        msw.rest[lowercaseMethod](`${baseUrl}${url}`, async (req, res, ctx) => {
+        rest[lowercaseMethod](`${baseUrl}${url}`, async (req, res, ctx) => {
           const resolve = options.once ? res.once : res;
 
           if (typeof handlerOrResponse !== 'function') {
@@ -164,6 +181,7 @@ export const createAPIMocker = <Endpoints extends RoughEndpoints>(
 };
 
 export type CreateAPIMockingConfig = {
+  server: SetupServer;
   baseUrl: string;
 };
 
@@ -187,11 +205,11 @@ export type CreateAPIMockingConfig = {
  * api.mock('GET /something', { status: 200, data: { message: 'test-message' } })
  */
 export const createAPIMockingUtility =
-  <Endpoints extends RoughEndpoints>({ baseUrl }: CreateAPIMockingConfig) =>
+  <Endpoints extends RoughEndpoints>({
+    server,
+    baseUrl,
+  }: CreateAPIMockingConfig) =>
   () => {
-    const server = setupServer();
-    server.listen({ onUnhandledRequest: 'error' });
-
     const mocker = createAPIMocker<Endpoints>(server, baseUrl);
 
     beforeEach(() => {

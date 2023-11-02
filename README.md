@@ -495,8 +495,15 @@ cache.updateInfiniteCache(
 If you're using [`jest`](https://jestjs.io/) for testing, use `createAPIMockingUtility` to create a shareable utility for mocking network calls.
 
 ```typescript
+import { setupServer } from 'msw/node';
+
+// Set up your server, and start listening.
+const server = setupServer();
+server.listen({ onUnhandledRequest: 'error' });
+
 // Specify your custom "APIEndpoints" type as the generic parameter here.
 export const useAPIMocking = createAPIMockingUtility<APIEndpoints>({
+  server,
   baseUrl: 'https://my.api.com',
 });
 
