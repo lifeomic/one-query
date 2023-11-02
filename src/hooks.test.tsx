@@ -6,6 +6,7 @@ import { createAPIHooks } from './hooks';
 import { createAPIMockingUtility } from './test-utils';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CacheUtils, EndpointInvalidationMap, RequestPayloadOf } from './types';
+import { setupServer } from 'msw/node';
 
 type TestEndpoints = {
   'GET /items': {
@@ -54,7 +55,10 @@ const {
   client,
 });
 
+const server = setupServer();
+server.listen({ onUnhandledRequest: 'error' });
 const network = createAPIMockingUtility<TestEndpoints>({
+  server,
   baseUrl: 'https://www.lifeomic.com',
 })();
 

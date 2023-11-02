@@ -2,6 +2,7 @@ import axios from 'axios';
 import { v4 } from 'uuid';
 import { createAPIMockingUtility } from './test-utils';
 import { APIClient } from './util';
+import { setupServer } from 'msw/node';
 
 describe('createAPIMockingUtility', () => {
   type TestEndpoints = {
@@ -19,7 +20,11 @@ describe('createAPIMockingUtility', () => {
     };
   };
 
+  const server = setupServer();
+  server.listen({ onUnhandledRequest: 'error' });
+
   const useNetworkMocking = createAPIMockingUtility<TestEndpoints>({
+    server,
     baseUrl: 'https://www.lifeomic.com',
   });
 
