@@ -472,19 +472,45 @@ cache.updateCache(
 );
 ```
 
-When dealing with a cache entry that was initiated via `useInfiniteAPIQuery` (paginated) prefer using `updateInfiniteCache` which otherwise behaves the same as `updateCache`
+When dealing with a cache entry that was initiated via `useInfiniteAPIQuery` (paginated) prefer using `updateInfiniteCache` which otherwise behaves the same as `updateCache`.
 
 ```typescript
 const cache = useAPICache();
 
 cache.updateInfiniteCache(
-  'GET /list',
+  'GET /messages',
   { filter: 'some-filter' },
   (current) => {...},
 );
 ```
 
-**Note**: if performing a programmatic update, _no update will occur_ if there is not a cached value.
+#### `getCacheData`
+
+Get the cached data for a query, if there is any.
+
+```typescript
+const cache = useAPICache();
+
+const value = cache.getCacheData(
+  // Specify the route + payload that you'd like to get the cached value for.
+  'GET /messages',
+  { filter: 'some-filter' },
+);
+
+value; // Message[] | undefined
+```
+
+When dealing with a cache entry that was initiated via `useInfiniteAPIQuery` (paginated) prefer using `getInfiniteCacheData` which otherwise behaves the same as `getCacheData`.
+
+```typescript
+const cache = useAPICache();
+
+const value = cache.getInfiniteCacheData('GET /messages', {
+  filter: 'some-filter',
+});
+
+value; // { pages: Message[]; }
+```
 
 ## Test Utility API Reference
 

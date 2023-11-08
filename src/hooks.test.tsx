@@ -1123,3 +1123,71 @@ test('passing a function for `client` is supported', async () => {
     expect(screen.queryAllByText('test-message-2')).toBeDefined();
   });
 });
+
+test('getCacheData', async () => {
+  network.mock('GET /items', {
+    status: 200,
+    data: { message: 'test-message' },
+  });
+
+  // Populate the cache.
+  const screen1 = render(() => {
+    const query = useAPIQuery('GET /items', { filter: 'test-filter' });
+    return <>{query.status}</>;
+  });
+
+  await TestingLibrary.waitFor(() => {
+    screen1.getByText('success');
+  });
+
+  screen1.unmount();
+
+  // Now, fetch from the cache.
+
+  const screen2 = render(() => {
+    const cache = useAPICache();
+
+    return (
+      <>
+        {cache.getCacheData('GET /items', { filter: 'test-filter' })?.message}
+      </>
+    );
+  });
+
+  screen2.getByText('test-message');
+});
+
+test('getInfiniteCacheData', async () => {
+  network.mock('GET /list', {
+    status: 200,
+    data: { items: [{ message: 'one' }, { message: 'two' }] },
+  });
+
+  // Populate the cache.
+  const screen1 = render(() => {
+    const query = useInfiniteAPIQuery('GET /list', { filter: 'test-filter' });
+    return <>{query.status}</>;
+  });
+
+  await TestingLibrary.waitFor(() => {
+    screen1.getByText('success');
+  });
+
+  screen1.unmount();
+
+  // Now, fetch from the cache.
+
+  const screen2 = render(() => {
+    const cache = useAPICache();
+
+    const value = cache.getInfiniteCacheData('GET /list', {
+      filter: 'test-filter',
+    });
+
+    const messages = value?.pages.flatMap((p) => p.items).map((i) => i.message);
+
+    return <>{messages?.join(',')}</>;
+  });
+
+  screen2.getByText('one,two');
+});
