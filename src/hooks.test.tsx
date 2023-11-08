@@ -1124,7 +1124,7 @@ test('passing a function for `client` is supported', async () => {
   });
 });
 
-test('getCacheData', async () => {
+test('getQueryData', async () => {
   network.mock('GET /items', {
     status: 200,
     data: { message: 'test-message' },
@@ -1149,7 +1149,7 @@ test('getCacheData', async () => {
 
     return (
       <>
-        {cache.getCacheData('GET /items', { filter: 'test-filter' })?.message}
+        {cache.getQueryData('GET /items', { filter: 'test-filter' })?.message}
       </>
     );
   });
@@ -1157,7 +1157,7 @@ test('getCacheData', async () => {
   screen2.getByText('test-message');
 });
 
-test('getInfiniteCacheData', async () => {
+test('getInfiniteQueryData', async () => {
   network.mock('GET /list', {
     status: 200,
     data: { items: [{ message: 'one' }, { message: 'two' }] },
@@ -1180,7 +1180,7 @@ test('getInfiniteCacheData', async () => {
   const screen2 = render(() => {
     const cache = useAPICache();
 
-    const value = cache.getInfiniteCacheData('GET /list', {
+    const value = cache.getInfiniteQueryData('GET /list', {
       filter: 'test-filter',
     });
 
@@ -1190,4 +1190,83 @@ test('getInfiniteCacheData', async () => {
   });
 
   screen2.getByText('one,two');
+});
+
+test('getQueriesData', async () => {
+  network.mock('GET /items', ({ query }) => ({
+    status: 200,
+    data: { message: query.filter },
+  }));
+
+  // Populate the cache.
+  const screen1 = render(() => {
+    const query = useCombinedAPIQueries(
+      ['GET /items', { filter: 'test-filter' }],
+      ['GET /items', { filter: 'other-filter' }],
+    );
+    return <>{query.status}</>;
+  });
+
+  await TestingLibrary.waitFor(() => {
+    screen1.getByText('success');
+  });
+
+  screen1.unmount();
+
+  // Now, fetch from the cache.
+
+  const screen2 = render(() => {
+    const cache = useAPICache();
+
+    const value = cache
+      .getQueriesData('GET /items')
+      .map(({ data }) => data?.message)
+      .join(',');
+
+    return <>{value}</>;
+  });
+
+  screen2.getByText('test-filter,other-filter');
+});
+
+test('getInfiniteQueriesData', async () => {
+  network.mock('GET /list', ({ query }) => ({
+    status: 200,
+    data: { items: [{ message: query.filter }] },
+  }));
+
+  // Populate the cache.
+  const screen1 = render(() => {
+    const query1 = useInfiniteAPIQuery('GET /list', { filter: 'test-filter' });
+    const query2 = useInfiniteAPIQuery('GET /list', { filter: 'other-filter' });
+
+    return (
+      <>
+        {query1.status},{query2.status}
+      </>
+    );
+  });
+
+  await TestingLibrary.waitFor(() => {
+    screen1.getByText('success,success');
+  });
+
+  screen1.unmount();
+
+  // Now, fetch from the cache.
+
+  const screen2 = render(() => {
+    const cache = useAPICache();
+
+    const value = cache.getInfiniteQueriesData('GET /list');
+
+    const messages = value
+      .flatMap(({ data }) => data!.pages)
+      .flatMap((p) => p.items)
+      .map((i) => i.message);
+
+    return <>{messages?.join(',')}</>;
+  });
+
+  screen2.getByText('test-filter,other-filter');
 });
