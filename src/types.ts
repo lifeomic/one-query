@@ -134,6 +134,16 @@ export type CacheUtils<Endpoints extends RoughEndpoints> = {
     payload: RequestPayloadOf<Endpoints, Route>,
     updater: CacheUpdate<InfiniteData<Endpoints[Route]['Response']>>,
   ) => void;
+
+  getCacheData: <Route extends keyof Endpoints & string>(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+  ) => Endpoints[Route]['Response'] | undefined;
+
+  getInfiniteCacheData: <Route extends keyof Endpoints & string>(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+  ) => InfiniteData<Endpoints[Route]['Response']> | undefined;
 };
 
 export type APIQueryHooks<Endpoints extends RoughEndpoints> = {

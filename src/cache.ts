@@ -83,5 +83,9 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
     },
     updateCache: updateCache(),
     updateInfiniteCache: updateCache(INFINITE_QUERY_KEY),
+    getCacheData: (route, payload) =>
+      client.getQueryData([makeQueryKey(route, payload)]),
+    getInfiniteCacheData: (route, payload) =>
+      client.getQueryData([INFINITE_QUERY_KEY, makeQueryKey(route, payload)]),
   };
 };
