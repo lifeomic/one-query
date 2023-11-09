@@ -83,9 +83,27 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
     },
     updateCache: updateCache(),
     updateInfiniteCache: updateCache(INFINITE_QUERY_KEY),
-    getCacheData: (route, payload) =>
+    getQueryData: (route, payload) =>
       client.getQueryData([makeQueryKey(route, payload)]),
-    getInfiniteCacheData: (route, payload) =>
+    getInfiniteQueryData: (route, payload) =>
       client.getQueryData([INFINITE_QUERY_KEY, makeQueryKey(route, payload)]),
+    getQueriesData: (route) =>
+      client
+        .getQueriesData(createQueryFilterFromSpec({ [route]: 'all' }))
+        // Don't match infinite queries
+        .filter(([queryKey]) => queryKey[0] !== INFINITE_QUERY_KEY)
+        .map(([queryKey, data]) => ({
+          payload: (queryKey[0] as any).payload,
+          data,
+        })),
+    getInfiniteQueriesData: (route) =>
+      client
+        .getQueriesData(createQueryFilterFromSpec({ [route]: 'all' }))
+        // Only match infinite queries
+        .filter(([queryKey]) => queryKey[0] === INFINITE_QUERY_KEY)
+        .map(([queryKey, data]) => ({
+          payload: (queryKey[1] as any).payload,
+          data: data as any,
+        })),
   };
 };

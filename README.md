@@ -484,14 +484,14 @@ cache.updateInfiniteCache(
 );
 ```
 
-#### `getCacheData`
+#### `getQueryData`
 
 Get the cached data for a query, if there is any.
 
 ```typescript
 const cache = useAPICache();
 
-const value = cache.getCacheData(
+const value = cache.getQueryData(
   // Specify the route + payload that you'd like to get the cached value for.
   'GET /messages',
   { filter: 'some-filter' },
@@ -500,16 +500,39 @@ const value = cache.getCacheData(
 value; // Message[] | undefined
 ```
 
-When dealing with a cache entry that was initiated via `useInfiniteAPIQuery` (paginated) prefer using `getInfiniteCacheData` which otherwise behaves the same as `getCacheData`.
+When dealing with a cache entry that was initiated via `useInfiniteAPIQuery` (paginated) prefer using `getInfiniteQueryData` which otherwise behaves the same as `getQueryData`.
 
 ```typescript
 const cache = useAPICache();
 
-const value = cache.getInfiniteCacheData('GET /messages', {
+const value = cache.getInfiniteQueryData('GET /messages', {
   filter: 'some-filter',
 });
 
 value; // { pages: Message[]; }
+```
+
+#### `getQueriesData`
+
+Get the cached data for every query of the provided route, by payload.
+
+```typescript
+const cache = useAPICache();
+
+// Specify the route.
+const value = cache.getQueriesData('GET /messages');
+
+value; // { payload: { filter: string; }; data: Message[] | undefined; }[]
+```
+
+If you want to fetch cache data created by `useInfiniteAPIQuery`, prefer using `getInfiniteQueriesData` which otherwise behaves the same as `getQueriesData`.
+
+```typescript
+const cache = useAPICache();
+
+const value = cache.getInfiniteQueriesData('GET /messages');
+
+value; // { payload: { filter: string; }; data: { items: } | undefined; }
 ```
 
 ## Test Utility API Reference
