@@ -74,7 +74,10 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       const client = useClient();
 
       return useMutation(
-        (payload) => client.request(route, payload).then((res) => res.data),
+        (payload) =>
+          client
+            .request(route, payload, options?.axios)
+            .then((res) => res.data),
         options,
       );
     },

@@ -192,7 +192,9 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
       Endpoints[Route]['Response'],
       unknown,
       RequestPayloadOf<Endpoints, Route>
-    >,
+    > & {
+      axios?: AxiosRequestConfig;
+    },
   ) => UseMutationResult<
     Endpoints[Route]['Response'],
     unknown,
