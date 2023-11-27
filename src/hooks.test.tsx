@@ -363,6 +363,47 @@ describe('useAPIMutation', () => {
       );
     });
   });
+
+  test('axios parameters works', async () => {
+    const networkPost = jest.fn().mockReturnValue({
+      status: 200,
+      data: { message: 'another-test-message' },
+    });
+    network.mock('POST /items', networkPost);
+
+    const screen = render(() => {
+      const mutation = useAPIMutation('POST /items', {
+        axios: {
+          headers: {
+            'test-header': 'test-value',
+          },
+        },
+      });
+      return (
+        <button
+          onClick={() => {
+            mutation.mutate({ message: 'something' });
+          }}
+        >
+          Press Me
+        </button>
+      );
+    });
+
+    TestingLibrary.fireEvent.click(screen.getByText('Press Me'));
+
+    await TestingLibrary.waitFor(() => {
+      expect(networkPost).toHaveBeenCalledTimes(1);
+      expect(networkPost).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: { message: 'something' },
+          headers: expect.objectContaining({
+            'test-header': 'test-value',
+          }),
+        }),
+      );
+    });
+  });
 });
 
 describe('useCombinedAPIQueries', () => {
