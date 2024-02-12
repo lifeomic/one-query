@@ -4,6 +4,7 @@ import {
   useMutation,
   QueryKey,
   useQueryClient,
+  useSuspenseQuery,
   useQueries,
   QueriesOptions,
 } from '@tanstack/react-query';
@@ -45,6 +46,22 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
           client
             .request(route, payload, options?.axios)
             .then((res) => res.data),
+      });
+
+      return query;
+    },
+
+    useSuspenseAPIQuery: (route, payload, options) => {
+      const client = useClient();
+      const queryKey: QueryKey = [createQueryKey(name, route, payload)];
+
+      const query = useSuspenseQuery({
+        queryKey,
+        queryFn: () =>
+          client
+            .request(route, payload, options?.axios)
+            .then((res) => res.data),
+        ...options,
       });
 
       return query;

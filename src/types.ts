@@ -7,6 +7,8 @@ import {
   UseInfiniteQueryOptions,
   UseInfiniteQueryResult,
   InfiniteData,
+  UseSuspenseQueryResult,
+  UseSuspenseQueryOptions,
   DefaultError,
 } from '@tanstack/react-query';
 import { AxiosRequestConfig } from 'axios';
@@ -55,6 +57,17 @@ type RestrictedUseQueryOptions<
   TError = DefaultError,
   Data = Response,
 > = Omit<UseQueryOptions<Response, TError, Data>, 'queryKey' | 'queryFn'> & {
+  axios?: AxiosRequestConfig;
+};
+
+type RestrictedUseSuspenseQueryOptions<
+  Response,
+  TError = DefaultError,
+  Data = Response,
+> = Omit<
+  UseSuspenseQueryOptions<Response, TError, Data>,
+  'queryKey' | 'queryFn'
+> & {
   axios?: AxiosRequestConfig;
 };
 
@@ -156,6 +169,19 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
       Data
     >,
   ) => UseQueryResult<Data>;
+
+  useSuspenseAPIQuery: <
+    Route extends keyof Endpoints & string,
+    Data = Endpoints[Route]['Response'],
+  >(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+    options?: RestrictedUseSuspenseQueryOptions<
+      Endpoints[Route]['Response'],
+      DefaultError,
+      Data
+    >,
+  ) => UseSuspenseQueryResult<Data>;
 
   useInfiniteAPIQuery: <Route extends keyof Endpoints & string>(
     route: Route,

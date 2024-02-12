@@ -190,6 +190,29 @@ const hooks = createAPIHooks<APIEndpoints>({
 });
 ```
 
+### `useSuspenseAPIQuery`
+
+Type-safe wrapper around `useSuspenseQuery` from `react-query`. Be sure to use within a `<React.Suspense />` boundary.
+
+```typescript
+const query = useSuspenseAPIQuery(
+  // First, specify the route.
+  'GET /messages',
+  // Then, specify the payload.
+  { filter: 'some-filter' },
+);
+```
+
+The return value of this hook is identical to the behavior of the `react-query` `useSuspenseQuery` hook's return value.
+
+```typescript
+const query = useQuery('GET /messages', { filter: 'some-filter' });
+
+query.data; // Message[]
+```
+
+Queries are cached using a combination of `route name + payload`. So, in the example above, the query key looks roughly like `['GET /messages', { filter: 'some-filter' }]`.
+
 ### `useAPIQuery`
 
 Type-safe wrapper around `useQuery` from `react-query`.
@@ -219,8 +242,6 @@ if (query.isError) {
 
 query.data; // Message[]
 ```
-
-Queries are cached using a combination of `route name + payload`. So, in the example above, the query key looks roughly like `['GET /messages', { filter: 'some-filter' }]`.
 
 ### `useInfiniteAPIQuery`
 

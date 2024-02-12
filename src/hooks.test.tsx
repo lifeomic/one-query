@@ -46,6 +46,7 @@ jest.spyOn(client, 'request');
 
 const {
   useAPIQuery,
+  useSuspenseAPIQuery,
   useInfiniteAPIQuery,
   useAPIMutation,
   useCombinedAPIQueries,
@@ -74,7 +75,11 @@ beforeEach(() => {
 const render = (Component: React.FC) =>
   TestingLibrary.render(<Component />, {
     wrapper: ({ children }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <React.Suspense fallback={<span>suspense fallback</span>}>
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      </React.Suspense>
     ),
   });
 
@@ -146,6 +151,80 @@ describe('useAPIQuery', () => {
     await TestingLibrary.waitFor(() => {
       expect(screen.queryByText('test-message')).toBeDefined();
     });
+  });
+});
+
+describe('useSuspenseAPIQuery', () => {
+  test('works correctly', async () => {
+    network.mock('GET /items', {
+      status: 200,
+      data: { message: 'test-message' },
+    });
+
+    const screen = render(() => {
+      const query = useSuspenseAPIQuery('GET /items', {
+        filter: 'test-filter',
+      });
+
+      return <div data-testid="content">{query.data?.message || ''}</div>;
+    });
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      screen.getByText(/suspense fallback/i),
+    );
+
+    expect((await screen.findByTestId('content')).textContent).toStrictEqual(
+      'test-message',
+    );
+  });
+
+  test('sending axios parameters works', async () => {
+    const getItems = jest.fn().mockReturnValue({
+      status: 200,
+      data: { message: 'test-message' },
+    });
+    network.mock('GET /items', getItems);
+
+    const screen = render(() => {
+      const query = useSuspenseAPIQuery(
+        'GET /items',
+        { filter: 'test-filter' },
+        { axios: { headers: { 'test-header': 'test-value' } } },
+      );
+      return <div data-testid="content">{query.data?.message || ''}</div>;
+    });
+
+    await screen.findByText(/test-message/i);
+
+    expect(getItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'test-header': 'test-value',
+        }),
+      }),
+    );
+  });
+
+  test('using select(...) works and is typed correctly', async () => {
+    network.mock('GET /items', {
+      status: 200,
+      data: { message: 'test-message' },
+    });
+
+    const screen = render(() => {
+      const query = useSuspenseAPIQuery(
+        'GET /items',
+        { filter: 'test-filter' },
+        { select: (data) => data.message },
+      );
+
+      // This line implicitly asserts that `query.data` is typed as string.
+      query.data.codePointAt(0);
+
+      return <div data-testid="content">{query.data}</div>;
+    });
+
+    await screen.findByText(/test-message/i);
   });
 });
 
