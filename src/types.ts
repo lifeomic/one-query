@@ -9,6 +9,8 @@ import {
   InfiniteData,
   UseSuspenseQueryResult,
   UseSuspenseQueryOptions,
+  UseSuspenseInfiniteQueryOptions,
+  UseSuspenseInfiniteQueryResult,
   DefaultError,
 } from '@tanstack/react-query';
 import { AxiosRequestConfig } from 'axios';
@@ -73,6 +75,20 @@ type RestrictedUseSuspenseQueryOptions<
 
 type RestrictedUseInfiniteQueryOptions<Response, Request> = Omit<
   UseInfiniteQueryOptions<InfiniteData<Response>, DefaultError>,
+  | 'queryKey'
+  | 'queryFn'
+  | 'initialPageParam'
+  | 'getNextPageParam'
+  | 'getPreviousPageParam'
+> & {
+  axios?: AxiosRequestConfig;
+  initialPageParam: Partial<Request>; // use init payload?
+  getNextPageParam: (lastPage: Response) => Partial<Request> | undefined;
+  getPreviousPageParam?: (firstPage: Response) => Partial<Request> | undefined;
+};
+
+type RestrictedUseSuspenseInfiniteQueryOptions<Response, Request> = Omit<
+  UseSuspenseInfiniteQueryOptions<InfiniteData<Response>, DefaultError>,
   | 'queryKey'
   | 'queryFn'
   | 'initialPageParam'
@@ -191,6 +207,18 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
       RequestPayloadOf<Endpoints, Route>
     >,
   ) => UseInfiniteQueryResult<
+    InfiniteData<Endpoints[Route]['Response']>,
+    DefaultError
+  >;
+
+  useSuspenseInfiniteAPIQuery: <Route extends keyof Endpoints & string>(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+    options: RestrictedUseSuspenseInfiniteQueryOptions<
+      Endpoints[Route]['Response'],
+      RequestPayloadOf<Endpoints, Route>
+    >,
+  ) => UseSuspenseInfiniteQueryResult<
     InfiniteData<Endpoints[Route]['Response']>,
     DefaultError
   >;

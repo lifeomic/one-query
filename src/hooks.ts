@@ -7,6 +7,7 @@ import {
   useSuspenseQuery,
   useQueries,
   QueriesOptions,
+  useSuspenseInfiniteQuery,
 } from '@tanstack/react-query';
 import { AxiosInstance } from 'axios';
 import { createCacheUtils, INFINITE_QUERY_KEY } from './cache';
@@ -94,6 +95,35 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
 
       return query;
     },
+
+    useSuspenseInfiniteAPIQuery: (route, initPayload, options) => {
+      const client = useClient();
+      const queryKey: QueryKey = [
+        INFINITE_QUERY_KEY,
+        createQueryKey(name, route, initPayload),
+      ];
+
+      const query = useSuspenseInfiniteQuery({
+        ...options,
+        queryKey,
+        initialPageParam: options.initialPageParam,
+        queryFn: ({ pageParam }) => {
+          const payload = {
+            ...initPayload,
+            ...(pageParam as any),
+            // casting here because `pageParam` is typed `any` and once it is
+            // merged with initPayload it makes `payload` `any`
+          } as typeof initPayload;
+
+          return client
+            .request(route, payload, options?.axios)
+            .then((res) => res.data) as any;
+        },
+      });
+
+      return query;
+    },
+
     useAPIMutation: (route, options) => {
       const client = useClient();
 

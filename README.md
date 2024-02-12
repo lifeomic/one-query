@@ -243,18 +243,19 @@ if (query.isError) {
 query.data; // Message[]
 ```
 
-### `useInfiniteAPIQuery`
+### `useSuspenseInfiniteAPIQuery`
 
-Type-safe wrapper around [`useInfiniteQuery`](https://tanstack.com/query/latest/docs/react/reference/useInfiniteQuery) from `react-query` which has a similar api as `useQuery` with a few key differences.
+Type-safe wrapper around [`useSuspenseInfiniteQuery`](https://tanstack.com/query/latest/docs/react/reference/useSuspenseInfiniteQuery) from `react-query`
 
 ```tsx
-const query = useInfiniteAPIQuery(
+const query = useSuspenseInfiniteAPIQuery(
   'GET /list',
   {
     // after is the token name in query string for the next page to return.
     after: undefined,
   },
   {
+    initialPageParam: {},
     // passes the pagination token from request body to query string "after"
     getNextPageParam: (lastPage) => ({ after: lastPage.next }),
     getPreviousPageParam: (firstPage) => ({ before: firstPage.previous }),
@@ -284,15 +285,46 @@ is required over query string. It may need another queryFn if the pagination tok
 }
 ```
 
-An alternative to using the `getNextPageParam` or `getPreviousPageParam` callback options, the query methods also accept a `pageParam` input.
+### `useInfiniteAPIQuery`
 
-```typescript
-const lastPage = query?.data?.pages[query.data.pages.length - 1];
-query.fetchNextPage({
-  pageParam: {
-    after: lastPage?.next,
+Type-safe wrapper around [`useInfiniteQuery`](https://tanstack.com/query/latest/docs/react/reference/useInfiniteQuery) from `react-query` which has a similar api as `useQuery` with a few key differences.
+
+```tsx
+const query = useInfiniteAPIQuery(
+  'GET /list',
+  {
+    // after is the token name in query string for the next page to return.
+    after: undefined,
   },
-});
+  {
+    initialPageParam: {},
+    // passes the pagination token from request body to query string "after"
+    getNextPageParam: (lastPage) => ({ after: lastPage.next }),
+    getPreviousPageParam: (firstPage) => ({ before: firstPage.previous }),
+  },
+);
+
+...
+
+<button
+  onClick={() => {
+    void query.fetchNextPage();
+
+    // Or fetch previous page
+    // void query.fetchPreviousPage();
+  }}
+/>;
+```
+
+The return value of this hook is identical to the behavior of the `react-query` `useInfiniteQuery` hook's return value where `data` holds an array of pages.
+
+When returning `undefined` from `getNextPageParam` it will set `query.hasNextPage` to false, otherwise it will merge the next api request payload with the returned object, likewise for `getPreviousPageParam` and `query.hasPreviousPage`. This is useful to pass pagination token from previous page since the current implementation provides a default `queryFn` assumes such token
+is required over query string. It may need another queryFn if the pagination token is managed via headers.
+
+```tsx
+{
+  query.data.pages.flatMap((page) => page.items.map((item) => ...));
+}
 ```
 
 ### `useAPIMutation`

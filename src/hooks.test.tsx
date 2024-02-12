@@ -48,6 +48,7 @@ const {
   useAPIQuery,
   useSuspenseAPIQuery,
   useInfiniteAPIQuery,
+  useSuspenseInfiniteAPIQuery,
   useAPIMutation,
   useCombinedAPIQueries,
   useAPICache,
@@ -410,6 +411,195 @@ describe('useInfiniteAPIQuery', () => {
         }),
       );
     });
+  });
+});
+
+describe('useSuspenseInfiniteAPIQuery', () => {
+  test('works correctly', async () => {
+    const next = 'second';
+    const previous = 'previous';
+    const pages = {
+      previous: {
+        previous: undefined,
+        next: 'first',
+        items: [
+          {
+            message: 'previous',
+          },
+        ],
+      },
+      first: {
+        previous,
+        next: 'second',
+        items: [
+          {
+            message: 'first',
+          },
+        ],
+      },
+      next: {
+        previous: 'first',
+        next: undefined,
+        items: [
+          {
+            message: 'second',
+          },
+        ],
+      },
+    };
+
+    const listSpy = jest
+      .fn()
+      .mockResolvedValueOnce({
+        status: 200,
+        data: pages.first,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: pages.next,
+      })
+      .mockResolvedValue({
+        status: 200,
+        data: pages.previous,
+      });
+
+    network.mock('GET /list', listSpy);
+
+    render(() => {
+      const query = useSuspenseInfiniteAPIQuery(
+        'GET /list',
+        {
+          filter: 'some-filter',
+          after: undefined,
+        },
+        {
+          initialPageParam: {},
+          getNextPageParam: (lastPage) => ({
+            after: lastPage.next,
+          }),
+          getPreviousPageParam: (firstPage) => ({
+            before: firstPage.previous,
+          }),
+        },
+      );
+
+      return (
+        <div>
+          <button
+            onClick={() => {
+              void query.fetchNextPage();
+            }}
+          >
+            fetch next
+          </button>
+          <button
+            onClick={() => {
+              void query.fetchPreviousPage();
+            }}
+          >
+            fetch previous
+          </button>
+          {query?.data?.pages?.flatMap((page) =>
+            page.items.map((message) => (
+              <p key={message.message}>{message.message}</p>
+            )),
+          )}
+        </div>
+      );
+    });
+
+    const [previousMessage, firstMessage, nextMessage] = Object.values(pages)
+      .flatMap((page) => page.items)
+      .map((item) => item.message);
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    // initial load
+    await TestingLibrary.screen.findByText(firstMessage);
+    expect(TestingLibrary.screen.queryByText(previousMessage)).not.toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).not.toBeTruthy();
+
+    // load next page _after_ first
+    TestingLibrary.fireEvent.click(
+      TestingLibrary.screen.getByRole('button', {
+        name: /fetch next/i,
+      }),
+    );
+    await TestingLibrary.screen.findByText(nextMessage);
+
+    expect(TestingLibrary.screen.queryByText(firstMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(previousMessage)).not.toBeTruthy();
+
+    // load previous page _before_ first
+    TestingLibrary.fireEvent.click(
+      TestingLibrary.screen.getByRole('button', {
+        name: /fetch previous/i,
+      }),
+    );
+    await TestingLibrary.screen.findByText(previousMessage);
+
+    // all data should now be on the page
+    expect(TestingLibrary.screen.queryByText(firstMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(previousMessage)).toBeTruthy();
+
+    expect(listSpy).toHaveBeenCalledTimes(3);
+    expect(listSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        query: { filter: 'some-filter' },
+      }),
+    );
+    expect(listSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        query: { filter: 'some-filter', after: next },
+      }),
+    );
+    expect(listSpy).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        query: { filter: 'some-filter', before: previous },
+      }),
+    );
+  });
+
+  test('sending axios parameters works', async () => {
+    const listSpy = jest.fn().mockResolvedValue({
+      status: 200,
+      data: {
+        next: undefined,
+        items: [],
+      },
+    });
+
+    network.mock('GET /list', listSpy);
+
+    render(() => {
+      const query = useSuspenseInfiniteAPIQuery(
+        'GET /list',
+        { filter: 'test-filter' },
+        {
+          axios: { headers: { 'test-header': 'test-value' } },
+          initialPageParam: {},
+          getNextPageParam: () => ({}),
+        },
+      );
+      return <div>{query.data.pages.at(0)?.items.length}</div>;
+    });
+
+    await TestingLibrary.screen.findByText('0');
+
+    expect(listSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'test-header': 'test-value',
+        }),
+      }),
+    );
   });
 });
 
