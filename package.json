@@ -15,13 +15,13 @@
     "build": "node build.js"
   },
   "peerDependencies": {
-    "@tanstack/react-query": "*",
+    "@tanstack/react-query": ">=5.0.0",
     "axios": "*"
   },
   "devDependencies": {
     "@lifeomic/eslint-config-standards": "^3.0.1",
     "@lifeomic/typescript-config": "^2.0.0",
-    "@tanstack/react-query": "^4.12.0",
+    "@tanstack/react-query": "^5.20.1",
     "@testing-library/react": "^13.4.0",
     "@types/jest": "^29.2.0",
     "@types/lodash": "^4.14.186",

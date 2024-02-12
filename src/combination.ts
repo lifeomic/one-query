@@ -18,7 +18,7 @@ export type CombinedQueriesDefinedResult<
   Queries extends QueryObserverResult[],
 > = {
   status: 'success';
-  isLoading: false;
+  isPending: false;
   isError: false;
   data: {
     [Index in keyof Queries]: DataOfQuery<Queries[Index]>;
@@ -34,7 +34,7 @@ export type CombinedQueriesLoadingResult<
   Queries extends QueryObserverResult[],
 > = {
   status: 'loading';
-  isLoading: true;
+  isPending: true;
   isError: false;
   data: undefined;
   queries: Queries;
@@ -43,7 +43,7 @@ export type CombinedQueriesLoadingResult<
 export type CombinedQueriesErrorResult<Queries extends QueryObserverResult[]> =
   {
     status: 'error';
-    isLoading: false;
+    isPending: false;
     isError: true;
     data: undefined;
     queries: Queries;
@@ -74,18 +74,18 @@ export const combineQueries = <Queries extends QueryObserverResult[]>(
     return {
       ...base,
       status: 'error',
-      isLoading: false,
+      isPending: false,
       data: undefined,
       isError: true,
       queries,
     };
   }
 
-  if (queries.some((query) => query.status === 'loading')) {
+  if (queries.some((query) => query.status === 'pending')) {
     return {
       ...base,
       status: 'loading',
-      isLoading: true,
+      isPending: true,
       data: undefined,
       isError: false,
       queries,
@@ -95,7 +95,7 @@ export const combineQueries = <Queries extends QueryObserverResult[]>(
   return {
     ...base,
     status: 'success',
-    isLoading: false,
+    isPending: false,
     data: queries.map((query) => query.data) as any,
     isError: false,
     queries: queries as any,

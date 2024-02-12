@@ -6,10 +6,8 @@ import {
   UseQueryResult,
   UseInfiniteQueryOptions,
   UseInfiniteQueryResult,
-  FetchNextPageOptions,
-  FetchPreviousPageOptions,
   InfiniteData,
-  InfiniteQueryObserverResult,
+  DefaultError,
 } from '@tanstack/react-query';
 import { AxiosRequestConfig } from 'axios';
 import { CombinedQueriesResult } from './combination';
@@ -54,39 +52,24 @@ export type RequestPayloadOf<
 
 type RestrictedUseQueryOptions<
   Response,
-  TError = unknown,
+  TError = DefaultError,
   Data = Response,
 > = Omit<UseQueryOptions<Response, TError, Data>, 'queryKey' | 'queryFn'> & {
   axios?: AxiosRequestConfig;
 };
 
-type RestrictedUseInfiniteQueryOptions<
-  Response,
-  Request,
-  Data = Response,
-> = Omit<
-  UseInfiniteQueryOptions<Response, unknown, Data>,
-  'queryKey' | 'queryFn' | 'getNextPageParam' | 'getPreviousPageParam'
+type RestrictedUseInfiniteQueryOptions<Response, Request> = Omit<
+  UseInfiniteQueryOptions<InfiniteData<Response>, DefaultError>,
+  | 'queryKey'
+  | 'queryFn'
+  | 'initialPageParam'
+  | 'getNextPageParam'
+  | 'getPreviousPageParam'
 > & {
   axios?: AxiosRequestConfig;
-  getNextPageParam?: (lastPage: Response) => Partial<Request> | undefined;
+  initialPageParam: Partial<Request>; // use init payload?
+  getNextPageParam: (lastPage: Response) => Partial<Request> | undefined;
   getPreviousPageParam?: (firstPage: Response) => Partial<Request> | undefined;
-};
-
-type RestrictedUseInfiniteQueryResult<Response, Request> = Omit<
-  UseInfiniteQueryResult<Response>,
-  'fetchNextPage' | 'fetchPreviousPage'
-> & {
-  fetchNextPage: (
-    options?: Omit<FetchNextPageOptions, 'pageParam'> & {
-      pageParam: Partial<Request>;
-    },
-  ) => Promise<InfiniteQueryObserverResult<Response>>;
-  fetchPreviousPage: (
-    options?: Omit<FetchPreviousPageOptions, 'pageParam'> & {
-      pageParam: Partial<Request>;
-    },
-  ) => Promise<InfiniteQueryObserverResult<Response>>;
 };
 
 export type CombinedRouteTuples<
@@ -169,7 +152,7 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
     payload: RequestPayloadOf<Endpoints, Route>,
     options?: RestrictedUseQueryOptions<
       Endpoints[Route]['Response'],
-      unknown,
+      DefaultError,
       Data
     >,
   ) => UseQueryResult<Data>;
@@ -177,27 +160,27 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
   useInfiniteAPIQuery: <Route extends keyof Endpoints & string>(
     route: Route,
     payload: RequestPayloadOf<Endpoints, Route>,
-    options?: RestrictedUseInfiniteQueryOptions<
+    options: RestrictedUseInfiniteQueryOptions<
       Endpoints[Route]['Response'],
       RequestPayloadOf<Endpoints, Route>
     >,
-  ) => RestrictedUseInfiniteQueryResult<
-    Endpoints[Route]['Response'],
-    RequestPayloadOf<Endpoints, Route>
+  ) => UseInfiniteQueryResult<
+    InfiniteData<Endpoints[Route]['Response']>,
+    DefaultError
   >;
 
   useAPIMutation: <Route extends keyof Endpoints & string>(
     route: Route,
     options?: UseMutationOptions<
       Endpoints[Route]['Response'],
-      unknown,
+      DefaultError,
       RequestPayloadOf<Endpoints, Route>
     > & {
       axios?: AxiosRequestConfig;
     },
   ) => UseMutationResult<
     Endpoints[Route]['Response'],
-    unknown,
+    DefaultError,
     RequestPayloadOf<Endpoints, Route>
   >;
 
