@@ -14,7 +14,10 @@ import {
   DefaultError,
 } from '@tanstack/react-query';
 import { AxiosRequestConfig } from 'axios';
-import { CombinedQueriesResult } from './combination';
+import {
+  CombinedQueriesResult,
+  SuspenseCombinedQueriesResult,
+} from './combination';
 
 /**
  * Extracts the path parameters from a route.
@@ -241,6 +244,14 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
   useCombinedAPIQueries<Routes extends (keyof Endpoints & string)[]>(
     ...routes: [...CombinedRouteTuples<Endpoints, Routes>]
   ): CombinedQueriesResult<{
+    [Index in keyof Routes]: QueryObserverResult<
+      Endpoints[Routes[Index]]['Response']
+    >;
+  }>;
+
+  useSuspenseCombinedAPIQueries<Routes extends (keyof Endpoints & string)[]>(
+    ...routes: [...CombinedRouteTuples<Endpoints, Routes>]
+  ): SuspenseCombinedQueriesResult<{
     [Index in keyof Routes]: QueryObserverResult<
       Endpoints[Routes[Index]]['Response']
     >;

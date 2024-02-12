@@ -1,6 +1,7 @@
 import {
   DefinedQueryObserverResult,
   QueryObserverResult,
+  UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
 type CombinedQueriesBaseResult = {
@@ -30,10 +31,10 @@ export type CombinedQueriesDefinedResult<
   };
 };
 
-export type CombinedQueriesLoadingResult<
+export type CombinedQueriesPendingResult<
   Queries extends QueryObserverResult[],
 > = {
-  status: 'loading';
+  status: 'pending';
   isPending: true;
   isError: false;
   data: undefined;
@@ -53,13 +54,27 @@ export type CombinedQueriesResult<Queries extends QueryObserverResult[]> =
   CombinedQueriesBaseResult &
     (
       | CombinedQueriesDefinedResult<Queries>
-      | CombinedQueriesLoadingResult<Queries>
+      | CombinedQueriesPendingResult<Queries>
       | CombinedQueriesErrorResult<Queries>
     );
 
-export const combineQueries = <Queries extends QueryObserverResult[]>(
+export type SuspenseCombinedQueriesResult<
+  Queries extends QueryObserverResult[],
+> = CombinedQueriesBaseResult &
+  Pick<
+    UseSuspenseQueryResult<Queries>,
+    'data' | 'status' | 'isPending' | 'isError'
+  > & {
+    queries: {
+      [Index in keyof Queries]: DefinedQueryObserverResult<
+        DataOfQuery<Queries[Index]>
+      >;
+    };
+  };
+
+const getBase = <Queries extends QueryObserverResult[]>(
   queries: [...Queries],
-): CombinedQueriesResult<Queries> => {
+): CombinedQueriesBaseResult => {
   const base = {
     isFetching: queries.some((query) => query.isFetching),
     isRefetching: queries.some((query) => query.isRefetching),
@@ -69,6 +84,25 @@ export const combineQueries = <Queries extends QueryObserverResult[]>(
       });
     },
   };
+
+  return base;
+};
+
+export const combineQueries = <Queries extends QueryObserverResult[]>(
+  queries: [...Queries],
+): CombinedQueriesResult<Queries> => {
+  const base = getBase(queries);
+
+  if (queries.some((query) => query.status === 'pending')) {
+    return {
+      ...base,
+      status: 'pending',
+      isPending: true,
+      data: undefined,
+      isError: false,
+      queries,
+    };
+  }
 
   if (queries.some((query) => query.status === 'error')) {
     return {
@@ -81,17 +115,24 @@ export const combineQueries = <Queries extends QueryObserverResult[]>(
     };
   }
 
-  if (queries.some((query) => query.status === 'pending')) {
-    return {
-      ...base,
-      status: 'loading',
-      isPending: true,
-      data: undefined,
-      isError: false,
-      queries,
-    };
-  }
+  return {
+    ...base,
+    status: 'success',
+    isPending: false,
+    data: queries.map((query) => query.data) as any,
+    isError: false,
+    queries: queries as any,
+  };
+};
 
+export const suspenseCombineQueries = <Queries extends QueryObserverResult[]>(
+  queries: [...Queries],
+): SuspenseCombinedQueriesResult<Queries> => {
+  const base = getBase(queries);
+
+  // Loading and Error states will be handled by suspense and error
+  // boundaries so unlike the non-suspense version we only need to
+  // account for the DefinedQueryObserverResult state
   return {
     ...base,
     status: 'success',

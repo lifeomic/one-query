@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as TestingLibrary from '@testing-library/react';
 import { useQuery as useReactQuery } from '@tanstack/react-query';
+import { ErrorBoundary } from 'react-error-boundary';
 import axios, { AxiosInstance } from 'axios';
 import { createAPIHooks } from './hooks';
 import { createAPIMockingUtility } from './test-utils';
@@ -51,6 +52,7 @@ const {
   useSuspenseInfiniteAPIQuery,
   useAPIMutation,
   useCombinedAPIQueries,
+  useSuspenseCombinedAPIQueries,
   useAPICache,
 } = createAPIHooks<TestEndpoints>({
   name: 'test-name',
@@ -76,11 +78,13 @@ beforeEach(() => {
 const render = (Component: React.FC) =>
   TestingLibrary.render(<Component />, {
     wrapper: ({ children }) => (
-      <React.Suspense fallback={<span>suspense fallback</span>}>
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      </React.Suspense>
+      <ErrorBoundary fallback={<span>error fallback</span>}>
+        <React.Suspense fallback={<span>suspense fallback</span>}>
+          <QueryClientProvider client={queryClient}>
+            {children}
+          </QueryClientProvider>
+        </React.Suspense>
+      </ErrorBoundary>
     ),
   });
 
@@ -835,6 +839,150 @@ describe('useCombinedAPIQueries', () => {
         }),
       );
     });
+  });
+});
+
+describe('useSuspenseCombinedAPIQueries', () => {
+  beforeEach(() => {
+    network
+      .mock('GET /items', { status: 200, data: { message: 'get response' } })
+      .mock('POST /items', { status: 200, data: { message: 'post response' } })
+      .mock('GET /items/:id', {
+        status: 200,
+        data: { message: 'put response' },
+      });
+  });
+
+  const setup = () => {
+    const onRender = jest.fn();
+    const screen = render(() => {
+      const query = useSuspenseCombinedAPIQueries(
+        ['GET /items', { filter: '' }],
+        ['POST /items', { message: '' }],
+        ['GET /items/:id', { filter: '', id: 'test-id' }],
+      );
+
+      if (onRender) {
+        onRender(query);
+      }
+      return <button onClick={query.refetchAll}>Refetch All</button>;
+    });
+
+    return { screen, onRender };
+  };
+
+  test('error state', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    network.mock('POST /items', { status: 500, data: {} });
+    setup();
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    expect(TestingLibrary.screen.getByText(/error fallback/i)).toBeDefined();
+    errorSpy.mockRestore();
+  });
+
+  test('success state', async () => {
+    const { onRender } = setup();
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    expect(onRender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isPending: false,
+        isRefetching: false,
+        isError: false,
+        data: [
+          { message: 'get response' },
+          { message: 'post response' },
+          { message: 'put response' },
+        ],
+      }),
+    );
+  });
+
+  test('refetchAll', async () => {
+    network
+      .mockOrdered('GET /items', [
+        { status: 200, data: { message: 'get response 1' } },
+        { status: 200, data: { message: 'get response 2' } },
+      ])
+      .mockOrdered('POST /items', [
+        { status: 200, data: { message: 'post response 1' } },
+        { status: 200, data: { message: 'post response 2' } },
+      ])
+      .mockOrdered('GET /items/:id', [
+        { status: 200, data: { message: 'put response 1' } },
+        { status: 200, data: { message: 'put response 2' } },
+      ]);
+    const { screen, onRender } = setup();
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    expect(onRender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isPending: false,
+        isRefetching: false,
+        isError: false,
+        data: [
+          { message: 'get response 1' },
+          { message: 'post response 1' },
+          { message: 'put response 1' },
+        ],
+      }),
+    );
+
+    TestingLibrary.fireEvent.click(screen.getByText('Refetch All'));
+
+    await TestingLibrary.waitFor(() => {
+      expect(onRender).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isPending: false,
+          isRefetching: false,
+          isError: false,
+          data: [
+            { message: 'get response 2' },
+            { message: 'post response 2' },
+            { message: 'put response 2' },
+          ],
+        }),
+      );
+    });
+  });
+
+  test('sending axios parameters works', async () => {
+    const getItems = jest.fn().mockReturnValue({
+      status: 200,
+      data: { message: 'test-message' },
+    });
+    network.mock('GET /items', getItems);
+
+    render(() => {
+      useSuspenseCombinedAPIQueries([
+        'GET /items',
+        { filter: 'test-filter' },
+        { axios: { headers: { 'test-header': 'test-value' } } },
+      ]);
+      return <div data-testid="content" />;
+    });
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    expect(getItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'test-header': 'test-value',
+        }),
+      }),
+    );
   });
 });
 

@@ -51,9 +51,13 @@ const hooks = createAPIHooks<APIEndpoints>({ // <-- Specify your custom type her
 
 export const {
   useAPIQuery,
-  useAPIMutation
+  useSuspenseAPIQuery,
+  useInfiniteAPIQuery,
+  useSuspenseInfiniteAPIQuery,
+  useAPIMutation,
   useCombinedAPIQueries,
-  useAPICache
+  useSuspenseCombinedAPIQueries,
+  useAPICache,
 } = hooks;
 ```
 
@@ -350,9 +354,72 @@ return (
 );
 ```
 
-### `useCombinedAPIQueries`
+### `useSuspenseCombinedAPIQueries`
 
 A helper for combining multiple parallel queries into a single `react-query`-like hook.
+
+Queries performed using this hook are cached independently, just as if they had been performed individually using `useSuspenseAPIQuery`.
+
+```typescript
+const query = useSuspenseCombinedAPIQueries(
+  ['GET /messages', { filter: 'some-filter' }],
+  ['GET /messages/:id', { id: 'some-message-id' }],
+);
+
+// Here all queries are complete - pending and error states are handled by suspense and error boundaries
+
+query.data; // [Message[], Message]
+
+const [list, message] = query.data;
+
+list; // Message[]
+message; // Message
+```
+
+#### `isFetching`
+
+Indicates whether _at least one_ query is in the "fetching" state.
+
+#### `isRefetching`
+
+Indicates whether _at least one_ query is in the "refetching" state.
+
+#### `refetchAll()`
+
+A helper function for triggering a refetch of every independent query in the combination.
+
+```typescript
+const query = useSuspenseCombinedAPIQueries(
+  ['GET /messages', { filter: 'some-filter' }],
+  ['GET /messages/:id', { id: 'some-message-id' }],
+);
+
+// This:
+query.refetchAll();
+
+// Is equivalent to:
+for (const individualQuery of query.queries) {
+  void individualQuery.refetch();
+}
+```
+
+#### `queries`
+
+Provides access to the individual underlying queries.
+
+```typescript
+const query = useSuspenseCombinedAPIQueries(
+  ['GET /messages', { filter: 'some-filter' }],
+  ['GET /messages/:id', { id: 'some-message-id' }],
+);
+
+query.queries[0].data; // Messages[]
+query.queries[1].data; // Message
+```
+
+### `useCombinedAPIQueries`
+
+A helper for combining multiple parallel queries into a single `react-query`-like hook. A non-suspense version of `useSuspenseCombinedAPIQueries`.
 
 Queries performed using this hook are cached independently, just as if they had been performed individually using `useAPIQuery`.
 
