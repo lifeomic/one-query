@@ -149,12 +149,14 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
     Data = Endpoints[Route]['Response'],
   >(
     route: Route,
-    payload: RequestPayloadOf<Endpoints, Route>,
-    options?: RestrictedUseQueryOptions<
+    // payload: RequestPayloadOf<Endpoints, Route>,
+    options: RestrictedUseQueryOptions<
       Endpoints[Route]['Response'],
       DefaultError,
       Data
-    >,
+    > & {
+      payload: RequestPayloadOf<Endpoints, Route>;
+    },
   ) => UseQueryResult<Data>;
 
   useInfiniteAPIQuery: <Route extends keyof Endpoints & string>(

@@ -86,7 +86,9 @@ describe('useAPIQuery', () => {
     });
 
     const screen = render(() => {
-      const query = useAPIQuery('GET /items', { filter: 'test-filter' });
+      const query = useAPIQuery('GET /items', {
+        payload: { filter: 'test-filter' },
+      });
       return <div data-testid="content">{query.data?.message || ''}</div>;
     });
 
@@ -105,11 +107,10 @@ describe('useAPIQuery', () => {
     network.mock('GET /items', getItems);
 
     render(() => {
-      const query = useAPIQuery(
-        'GET /items',
-        { filter: 'test-filter' },
-        { axios: { headers: { 'test-header': 'test-value' } } },
-      );
+      const query = useAPIQuery('GET /items', {
+        payload: { filter: 'test-filter' },
+        axios: { headers: { 'test-header': 'test-value' } },
+      });
       return <div data-testid="content">{query.data?.message || ''}</div>;
     });
 
@@ -131,11 +132,10 @@ describe('useAPIQuery', () => {
     });
 
     const screen = render(() => {
-      const query = useAPIQuery(
-        'GET /items',
-        { filter: 'test-filter' },
-        { select: (data) => data.message },
-      );
+      const query = useAPIQuery('GET /items', {
+        payload: { filter: 'test-filter' },
+        select: (data) => data.message,
+      });
 
       // This line implicitly asserts that `query.data` is typed as string.
       query.data?.codePointAt(0);
@@ -717,7 +717,8 @@ describe('useAPICache', () => {
           const screen = render(() => (
             <TestComponent
               getRenderData={() => {
-                const { data } = useAPIQuery('GET /items/:id', variables, {
+                const { data } = useAPIQuery('GET /items/:id', {
+                  payload: variables,
                   gcTime: Infinity,
                 });
 
@@ -755,11 +756,10 @@ describe('useAPICache', () => {
           const screen = render(() => (
             <TestComponent
               getRenderData={() => {
-                const { data } = useAPIQuery(
-                  'GET /items/:id',
-                  { id: 'some-id', filter: 'some-filter' },
-                  { gcTime: Infinity },
-                );
+                const { data } = useAPIQuery('GET /items/:id', {
+                  payload: { id: 'some-id', filter: 'some-filter' },
+                  gcTime: Infinity,
+                });
 
                 return `Response: ${data?.message || 'undefined'}`;
               }}
@@ -803,17 +803,18 @@ describe('useAPICache', () => {
           const screen = render(() => (
             <TestComponent
               getRenderData={() => {
-                const first = useAPIQuery(
-                  'GET /items/:id',
-                  { id: 'some-id', filter: 'some-filter' },
-                  { gcTime: Infinity },
-                );
+                const first = useAPIQuery('GET /items/:id', {
+                  payload: { id: 'some-id', filter: 'some-filter' },
+                  gcTime: Infinity,
+                });
 
-                const second = useAPIQuery(
-                  'GET /items/:id',
-                  { id: 'some-other-id', filter: 'some-other-filter' },
-                  { gcTime: Infinity },
-                );
+                const second = useAPIQuery('GET /items/:id', {
+                  payload: {
+                    id: 'some-other-id',
+                    filter: 'some-other-filter',
+                  },
+                  gcTime: Infinity,
+                });
 
                 return `Responses: ${first.data?.message || 'undefined'} ${
                   second.data?.message || 'undefined'
@@ -901,11 +902,10 @@ describe('useAPICache', () => {
                   getRenderData={
                     getRenderData ??
                     (() => {
-                      const { data } = useAPIQuery(
-                        'GET /items/:id',
-                        { id: 'some-id', filter: 'some-filter' },
-                        { gcTime: Infinity },
-                      );
+                      const { data } = useAPIQuery('GET /items/:id', {
+                        payload: { id: 'some-id', filter: 'some-filter' },
+                        gcTime: Infinity,
+                      });
 
                       return `Response: ${data?.message || 'undefined'}`;
                     })
@@ -950,7 +950,9 @@ describe('useAPICache', () => {
           ? {
               route: 'GET /items',
               getRenderData: () => {
-                const { data } = useAPIQuery('GET /items', { filter: '' });
+                const { data } = useAPIQuery('GET /items', {
+                  payload: { filter: '' },
+                });
                 return `Response: ${data?.message}`;
               },
             }
@@ -1159,7 +1161,9 @@ test('passing a function for `client` is supported', async () => {
   });
 
   const TestComponent: React.FC = () => {
-    const query = useAPIQuery('GET /items', { filter: 'test-filter' });
+    const query = useAPIQuery('GET /items', {
+      payload: { filter: 'test-filter' },
+    });
     return <>{query.data?.message}</>;
   };
 
@@ -1193,7 +1197,9 @@ test('getQueryData', async () => {
 
   // Populate the cache.
   const screen1 = render(() => {
-    const query = useAPIQuery('GET /items', { filter: 'test-filter' });
+    const query = useAPIQuery('GET /items', {
+      payload: { filter: 'test-filter' },
+    });
     return <>{query.status}</>;
   });
 

@@ -34,7 +34,7 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
     );
 
   return {
-    useAPIQuery: (route, payload, options) => {
+    useAPIQuery: (route, { payload, ...options }) => {
       const client = useClient();
       const queryKey: QueryKey = [createQueryKey(name, route, payload)];
 

@@ -7,6 +7,13 @@ versions of `@lifeomic/one-query`
 
 - See `react-query`'s [migration guide](https://tanstack.com/query/v5/docs/framework/react/guides/migrating-to-v5) for an idea. The largest changes will be outlined below - however since `one-query` is mostly a typed wrapper around `react-query` most, if not all, things mentioned apply
 
+- To Better align with with the api changes in react-query, the api will change to providing the request "input" or payload as part of the third argument options. Making options required for at least that property.
+
+```diff
+- useAPIQuery(route, payload, options)
++ useQuery(route, { payload, ...options })
+```
+
 - The `loading` status has been renamed to `pending`, and similarly the derived `isLoading` flag has been renamed to `isPending`
 
 ```diff
