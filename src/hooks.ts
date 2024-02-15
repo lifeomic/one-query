@@ -3,14 +3,15 @@ import {
   useInfiniteQuery,
   useMutation,
   QueryKey,
-  useQueries,
   useQueryClient,
+  useQueries,
+  QueriesOptions,
 } from '@tanstack/react-query';
 import { AxiosInstance } from 'axios';
 import { createCacheUtils, INFINITE_QUERY_KEY } from './cache';
-import { combineQueries } from './combination';
 import { APIQueryHooks, RoughEndpoints } from './types';
 import { APIClient, createQueryKey } from './util';
+import { combineQueries } from './combination';
 
 export type CreateAPIQueryHooksOptions = {
   name: string;
@@ -36,51 +37,58 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
     useAPIQuery: (route, payload, options) => {
       const client = useClient();
       const queryKey: QueryKey = [createQueryKey(name, route, payload)];
-      return useQuery(
+
+      const query = useQuery({
+        ...options,
         queryKey,
-        () =>
+        queryFn: () =>
           client
             .request(route, payload, options?.axios)
             .then((res) => res.data),
-        options,
-      );
+      });
+
+      return query;
     },
+
     useInfiniteAPIQuery: (route, initPayload, options) => {
       const client = useClient();
       const queryKey: QueryKey = [
         INFINITE_QUERY_KEY,
         createQueryKey(name, route, initPayload),
       ];
-      const query = useInfiniteQuery(
+
+      const query = useInfiniteQuery({
+        ...options,
         queryKey,
-        ({ pageParam }) => {
+        initialPageParam: options.initialPageParam,
+        queryFn: ({ pageParam }) => {
           const payload = {
             ...initPayload,
-            ...pageParam,
+            ...(pageParam as any),
             // casting here because `pageParam` is typed `any` and once it is
             // merged with initPayload it makes `payload` `any`
           } as typeof initPayload;
 
           return client
-            .request(route, payload, options?.axios)
-            .then((res) => res.data);
+            .request(route, payload, options.axios)
+            .then((res) => res.data) as any;
         },
-        options,
-      );
+      });
 
       return query;
     },
     useAPIMutation: (route, options) => {
       const client = useClient();
 
-      return useMutation(
-        (payload) =>
+      return useMutation({
+        ...options,
+        mutationFn: (payload) =>
           client
             .request(route, payload, options?.axios)
             .then((res) => res.data),
-        options,
-      );
+      });
     },
+
     useCombinedAPIQueries: (...routes) => {
       const client = useClient();
 
@@ -92,7 +100,7 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
             client
               .request(endpoint, payload, options?.axios)
               .then((res) => res.data),
-        })),
+        })) as [...QueriesOptions<any>],
       });
 
       // The useQueries type inference is not quite as in-depth as ours is. So,
@@ -101,6 +109,7 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       return combineQueries(queries as any);
     },
+
     useAPICache: () => {
       const client = useQueryClient();
       return createCacheUtils(client, (route, payload) =>

@@ -201,34 +201,35 @@ describe('useInfiniteAPIQuery', () => {
     network.mock('GET /list', listSpy);
 
     render(() => {
-      const query = useInfiniteAPIQuery('GET /list', {
-        filter: 'some-filter',
-        after: undefined,
-      });
+      const query = useInfiniteAPIQuery(
+        'GET /list',
+        {
+          filter: 'some-filter',
+          after: undefined,
+        },
+        {
+          initialPageParam: {},
+          getNextPageParam: (lastPage) => ({
+            after: lastPage.next,
+          }),
+          getPreviousPageParam: (firstPage) => ({
+            before: firstPage.previous,
+          }),
+        },
+      );
 
       return (
         <div>
           <button
             onClick={() => {
-              const lastPage = query?.data?.pages.at(-1);
-              void query.fetchNextPage({
-                pageParam: {
-                  after: lastPage?.next,
-                },
-              });
+              void query.fetchNextPage();
             }}
           >
             fetch next
           </button>
           <button
             onClick={() => {
-              const firstPage = query?.data?.pages.at(0);
-
-              void query.fetchPreviousPage({
-                pageParam: {
-                  before: firstPage?.previous,
-                },
-              });
+              void query.fetchPreviousPage();
             }}
           >
             fetch previous
@@ -314,6 +315,8 @@ describe('useInfiniteAPIQuery', () => {
         { filter: 'test-filter' },
         {
           axios: { headers: { 'test-header': 'test-value' } },
+          initialPageParam: {},
+          getNextPageParam: () => ({}),
         },
       );
       return <div />;
@@ -445,7 +448,7 @@ describe('useCombinedAPIQueries', () => {
     await TestingLibrary.waitFor(() => {
       expect(onRender).toHaveBeenCalledWith(
         expect.objectContaining({
-          isLoading: true,
+          isPending: true,
           isRefetching: false,
           isError: false,
           data: undefined,
@@ -461,7 +464,7 @@ describe('useCombinedAPIQueries', () => {
     await TestingLibrary.waitFor(() => {
       expect(onRender).toHaveBeenCalledWith(
         expect.objectContaining({
-          isLoading: false,
+          isPending: false,
           isRefetching: false,
           isError: true,
           data: undefined,
@@ -476,7 +479,7 @@ describe('useCombinedAPIQueries', () => {
     await TestingLibrary.waitFor(() => {
       expect(onRender).toHaveBeenCalledWith(
         expect.objectContaining({
-          isLoading: false,
+          isPending: false,
           isRefetching: false,
           isError: false,
           data: [
@@ -508,7 +511,7 @@ describe('useCombinedAPIQueries', () => {
     await TestingLibrary.waitFor(() => {
       expect(onRender).toHaveBeenCalledWith(
         expect.objectContaining({
-          isLoading: false,
+          isPending: false,
           isRefetching: false,
           isError: false,
           data: [
@@ -525,7 +528,7 @@ describe('useCombinedAPIQueries', () => {
     await TestingLibrary.waitFor(() => {
       expect(onRender).toHaveBeenCalledWith(
         expect.objectContaining({
-          isLoading: false,
+          isPending: false,
           isRefetching: false,
           isError: false,
           data: [
@@ -628,7 +631,9 @@ describe('useAPICache', () => {
                     filter: 'some-filter',
                   },
                   {
-                    cacheTime: Infinity,
+                    gcTime: Infinity,
+                    initialPageParam: {},
+                    getNextPageParam: () => ({}),
                   },
                 );
 
@@ -673,7 +678,9 @@ describe('useAPICache', () => {
                     filter: 'some-filter',
                   },
                   {
-                    cacheTime: Infinity,
+                    gcTime: Infinity,
+                    initialPageParam: {},
+                    getNextPageParam: () => ({}),
                   },
                 );
 
@@ -711,7 +718,7 @@ describe('useAPICache', () => {
             <TestComponent
               getRenderData={() => {
                 const { data } = useAPIQuery('GET /items/:id', variables, {
-                  cacheTime: Infinity,
+                  gcTime: Infinity,
                 });
 
                 return `Response: ${data?.message || 'undefined'}`;
@@ -751,7 +758,7 @@ describe('useAPICache', () => {
                 const { data } = useAPIQuery(
                   'GET /items/:id',
                   { id: 'some-id', filter: 'some-filter' },
-                  { cacheTime: Infinity },
+                  { gcTime: Infinity },
                 );
 
                 return `Response: ${data?.message || 'undefined'}`;
@@ -799,13 +806,13 @@ describe('useAPICache', () => {
                 const first = useAPIQuery(
                   'GET /items/:id',
                   { id: 'some-id', filter: 'some-filter' },
-                  { cacheTime: Infinity },
+                  { gcTime: Infinity },
                 );
 
                 const second = useAPIQuery(
                   'GET /items/:id',
                   { id: 'some-other-id', filter: 'some-other-filter' },
-                  { cacheTime: Infinity },
+                  { gcTime: Infinity },
                 );
 
                 return `Responses: ${first.data?.message || 'undefined'} ${
@@ -871,13 +878,15 @@ describe('useAPICache', () => {
             it: 'does not invalidate queries that were not created by the shared hooks',
             invalidate: {},
             getRenderData: () => {
-              const { data } = useReactQuery(['some-other-key'], () =>
-                client.request({
-                  method: 'GET',
-                  url: '/items/some-id',
-                  params: { filter: 'some-filter' },
-                }),
-              );
+              const { data } = useReactQuery({
+                queryKey: ['some-other-key'],
+                queryFn: () =>
+                  client.request({
+                    method: 'GET',
+                    url: '/items/some-id',
+                    params: { filter: 'some-filter' },
+                  }),
+              });
 
               return `Response: ${data?.data.message || 'undefined'}`;
             },
@@ -895,7 +904,7 @@ describe('useAPICache', () => {
                       const { data } = useAPIQuery(
                         'GET /items/:id',
                         { id: 'some-id', filter: 'some-filter' },
-                        { cacheTime: Infinity },
+                        { gcTime: Infinity },
                       );
 
                       return `Response: ${data?.message || 'undefined'}`;
@@ -948,9 +957,16 @@ describe('useAPICache', () => {
           : {
               route: 'GET /list',
               getRenderData: () => {
-                const { data } = useInfiniteAPIQuery('GET /list', {
-                  filter: '',
-                });
+                const { data } = useInfiniteAPIQuery(
+                  'GET /list',
+                  {
+                    filter: '',
+                  },
+                  {
+                    initialPageParam: {},
+                    getNextPageParam: () => ({}),
+                  },
+                );
                 return `Response: ${data?.pages?.at(0)?.items?.at(0)?.message}`;
               },
             };
@@ -997,6 +1013,7 @@ describe('useAPICache', () => {
             getRenderData={config.getRenderData}
             onPress={(cache) => {
               const updateMethod = cache[method];
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-expect-error
               updateMethod(config.route, { filter: '' }, update);
             }}
@@ -1034,6 +1051,7 @@ describe('useAPICache', () => {
             getRenderData={config.getRenderData}
             onPress={(cache) => {
               const updateMethod = cache[method];
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-expect-error
               updateMethod(config.route, { filter: '' }, updater);
             }}
@@ -1071,6 +1089,7 @@ describe('useAPICache', () => {
             getRenderData={config.getRenderData}
             onPress={(cache) => {
               const updateMethod = cache[method];
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-expect-error
               updateMethod(config.route, { filter: '' }, updater);
             }}
@@ -1104,6 +1123,7 @@ describe('useAPICache', () => {
             }}
             onPress={(cache) => {
               const updateMethod = cache[method];
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-expect-error
               updateMethod(config.route, { filter: '' }, updateFn);
             }}
@@ -1206,7 +1226,14 @@ test('getInfiniteQueryData', async () => {
 
   // Populate the cache.
   const screen1 = render(() => {
-    const query = useInfiniteAPIQuery('GET /list', { filter: 'test-filter' });
+    const query = useInfiniteAPIQuery(
+      'GET /list',
+      { filter: 'test-filter' },
+      {
+        initialPageParam: {},
+        getNextPageParam: () => ({}),
+      },
+    );
     return <>{query.status}</>;
   });
 
@@ -1278,8 +1305,22 @@ test('getInfiniteQueriesData', async () => {
 
   // Populate the cache.
   const screen1 = render(() => {
-    const query1 = useInfiniteAPIQuery('GET /list', { filter: 'test-filter' });
-    const query2 = useInfiniteAPIQuery('GET /list', { filter: 'other-filter' });
+    const query1 = useInfiniteAPIQuery(
+      'GET /list',
+      { filter: 'test-filter' },
+      {
+        initialPageParam: {},
+        getNextPageParam: () => ({}),
+      },
+    );
+    const query2 = useInfiniteAPIQuery(
+      'GET /list',
+      { filter: 'other-filter' },
+      {
+        initialPageParam: {},
+        getNextPageParam: () => ({}),
+      },
+    );
 
     return (
       <>

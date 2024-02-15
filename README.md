@@ -210,7 +210,7 @@ const query = useQuery('GET /messages', { filter: 'some-filter' });
 
 query.data; // Message[] | undefined
 
-if (query.isLoading) {
+if (query.isPending) {
   return null;
 }
 if (query.isError) {
@@ -315,7 +315,7 @@ if (query.isError) {
 }
 
 // This means _at least one_ query is in the "loading" state.
-if (query.isLoading) {
+if (query.isPending) {
   return;
 }
 
@@ -337,9 +337,9 @@ Indicates whether _at least one_ query is in the "fetching" state.
 
 Indicates whether _at least one_ query is in the "refetching" state.
 
-#### `isLoading`
+#### `isPending`
 
-Indicates whether _at least one_ query is in the "loading state.
+Indicates whether _at least one_ query is in the "pending state.
 
 #### `isError`
 

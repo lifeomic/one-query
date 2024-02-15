@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import { AxiosInstance } from 'axios';
 import { v4 } from 'uuid';
 import { APIClient } from './util';
