@@ -85,7 +85,7 @@ type RestrictedUseInfiniteQueryOptions<Response, Request> = Omit<
   | 'getPreviousPageParam'
 > & {
   axios?: AxiosRequestConfig;
-  initialPageParam: Partial<Request>; // use init payload?
+  initialPageParam: Partial<Request>;
   getNextPageParam: (lastPage: Response) => Partial<Request> | undefined;
   getPreviousPageParam?: (firstPage: Response) => Partial<Request> | undefined;
 };

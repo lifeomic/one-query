@@ -139,6 +139,9 @@ export const suspenseCombineQueries = <Queries extends QueryObserverResult[]>(
     isPending: false,
     data: queries.map((query) => query.data) as any,
     isError: false,
+    // Data is typed as unknown[] because it can't infer it
+    // correctly - here we cast it as any, in types we give
+    // it the correct type we expect.
     queries: queries as any,
   };
 };

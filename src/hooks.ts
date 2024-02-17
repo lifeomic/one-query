@@ -80,7 +80,6 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       const query = useInfiniteQuery({
         ...options,
         queryKey,
-        initialPageParam: options.initialPageParam,
         queryFn: ({ pageParam }) => {
           const payload = {
             ...initPayload,
