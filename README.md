@@ -51,9 +51,13 @@ const hooks = createAPIHooks<APIEndpoints>({ // <-- Specify your custom type her
 
 export const {
   useAPIQuery,
-  useAPIMutation
+  useSuspenseAPIQuery,
+  useInfiniteAPIQuery,
+  useSuspenseInfiniteAPIQuery,
+  useAPIMutation,
   useCombinedAPIQueries,
-  useAPICache
+  useSuspenseCombinedAPIQueries,
+  useAPICache,
 } = hooks;
 ```
 
@@ -190,6 +194,29 @@ const hooks = createAPIHooks<APIEndpoints>({
 });
 ```
 
+### `useSuspenseAPIQuery`
+
+Type-safe wrapper around `useSuspenseQuery` from `react-query`. Be sure to use within a `<React.Suspense />` boundary.
+
+```typescript
+const query = useSuspenseAPIQuery(
+  // First, specify the route.
+  'GET /messages',
+  // Then, specify the payload.
+  { filter: 'some-filter' },
+);
+```
+
+The return value of this hook is identical to the behavior of the `react-query` `useSuspenseQuery` hook's return value.
+
+```typescript
+const query = useQuery('GET /messages', { filter: 'some-filter' });
+
+query.data; // Message[]
+```
+
+Queries are cached using a combination of `route name + payload`. So, in the example above, the query key looks roughly like `['GET /messages', { filter: 'some-filter' }]`.
+
 ### `useAPIQuery`
 
 Type-safe wrapper around `useQuery` from `react-query`.
@@ -220,20 +247,19 @@ if (query.isError) {
 query.data; // Message[]
 ```
 
-Queries are cached using a combination of `route name + payload`. So, in the example above, the query key looks roughly like `['GET /messages', { filter: 'some-filter' }]`.
+### `useSuspenseInfiniteAPIQuery`
 
-### `useInfiniteAPIQuery`
-
-Type-safe wrapper around [`useInfiniteQuery`](https://tanstack.com/query/latest/docs/react/reference/useInfiniteQuery) from `react-query` which has a similar api as `useQuery` with a few key differences.
+Type-safe wrapper around [`useSuspenseInfiniteQuery`](https://tanstack.com/query/latest/docs/react/reference/useSuspenseInfiniteQuery) from `react-query`
 
 ```tsx
-const query = useInfiniteAPIQuery(
+const query = useSuspenseInfiniteAPIQuery(
   'GET /list',
   {
     // after is the token name in query string for the next page to return.
     after: undefined,
   },
   {
+    initialPageParam: {},
     // passes the pagination token from request body to query string "after"
     getNextPageParam: (lastPage) => ({ after: lastPage.next }),
     getPreviousPageParam: (firstPage) => ({ before: firstPage.previous }),
@@ -263,15 +289,46 @@ is required over query string. It may need another queryFn if the pagination tok
 }
 ```
 
-An alternative to using the `getNextPageParam` or `getPreviousPageParam` callback options, the query methods also accept a `pageParam` input.
+### `useInfiniteAPIQuery`
 
-```typescript
-const lastPage = query?.data?.pages[query.data.pages.length - 1];
-query.fetchNextPage({
-  pageParam: {
-    after: lastPage?.next,
+Type-safe wrapper around [`useInfiniteQuery`](https://tanstack.com/query/latest/docs/react/reference/useInfiniteQuery) from `react-query` which has a similar api as `useQuery` with a few key differences.
+
+```tsx
+const query = useInfiniteAPIQuery(
+  'GET /list',
+  {
+    // after is the token name in query string for the next page to return.
+    after: undefined,
   },
-});
+  {
+    initialPageParam: {},
+    // passes the pagination token from request body to query string "after"
+    getNextPageParam: (lastPage) => ({ after: lastPage.next }),
+    getPreviousPageParam: (firstPage) => ({ before: firstPage.previous }),
+  },
+);
+
+...
+
+<button
+  onClick={() => {
+    void query.fetchNextPage();
+
+    // Or fetch previous page
+    // void query.fetchPreviousPage();
+  }}
+/>;
+```
+
+The return value of this hook is identical to the behavior of the `react-query` `useInfiniteQuery` hook's return value where `data` holds an array of pages.
+
+When returning `undefined` from `getNextPageParam` it will set `query.hasNextPage` to false, otherwise it will merge the next api request payload with the returned object, likewise for `getPreviousPageParam` and `query.hasPreviousPage`. This is useful to pass pagination token from previous page since the current implementation provides a default `queryFn` assumes such token
+is required over query string. It may need another queryFn if the pagination token is managed via headers.
+
+```tsx
+{
+  query.data.pages.flatMap((page) => page.items.map((item) => ...));
+}
 ```
 
 ### `useAPIMutation`
@@ -297,9 +354,72 @@ return (
 );
 ```
 
-### `useCombinedAPIQueries`
+### `useSuspenseCombinedAPIQueries`
 
 A helper for combining multiple parallel queries into a single `react-query`-like hook.
+
+Queries performed using this hook are cached independently, just as if they had been performed individually using `useSuspenseAPIQuery`.
+
+```typescript
+const query = useSuspenseCombinedAPIQueries(
+  ['GET /messages', { filter: 'some-filter' }],
+  ['GET /messages/:id', { id: 'some-message-id' }],
+);
+
+// Here all queries are complete - pending and error states are handled by suspense and error boundaries
+
+query.data; // [Message[], Message]
+
+const [list, message] = query.data;
+
+list; // Message[]
+message; // Message
+```
+
+#### `isFetching`
+
+Indicates whether _at least one_ query is in the "fetching" state.
+
+#### `isRefetching`
+
+Indicates whether _at least one_ query is in the "refetching" state.
+
+#### `refetchAll()`
+
+A helper function for triggering a refetch of every independent query in the combination.
+
+```typescript
+const query = useSuspenseCombinedAPIQueries(
+  ['GET /messages', { filter: 'some-filter' }],
+  ['GET /messages/:id', { id: 'some-message-id' }],
+);
+
+// This:
+query.refetchAll();
+
+// Is equivalent to:
+for (const individualQuery of query.queries) {
+  void individualQuery.refetch();
+}
+```
+
+#### `queries`
+
+Provides access to the individual underlying queries.
+
+```typescript
+const query = useSuspenseCombinedAPIQueries(
+  ['GET /messages', { filter: 'some-filter' }],
+  ['GET /messages/:id', { id: 'some-message-id' }],
+);
+
+query.queries[0].data; // Messages[]
+query.queries[1].data; // Message
+```
+
+### `useCombinedAPIQueries`
+
+A helper for combining multiple parallel queries into a single `react-query`-like hook. A non-suspense version of `useSuspenseCombinedAPIQueries`.
 
 Queries performed using this hook are cached independently, just as if they had been performed individually using `useAPIQuery`.
 

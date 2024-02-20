@@ -4,14 +4,18 @@ import {
   useMutation,
   QueryKey,
   useQueryClient,
+  useSuspenseQuery,
   useQueries,
   QueriesOptions,
+  useSuspenseInfiniteQuery,
+  useSuspenseQueries,
+  SuspenseQueriesOptions,
 } from '@tanstack/react-query';
 import { AxiosInstance } from 'axios';
 import { createCacheUtils, INFINITE_QUERY_KEY } from './cache';
 import { APIQueryHooks, RoughEndpoints } from './types';
 import { APIClient, createQueryKey } from './util';
-import { combineQueries } from './combination';
+import { combineQueries, suspenseCombineQueries } from './combination';
 
 export type CreateAPIQueryHooksOptions = {
   name: string;
@@ -50,6 +54,22 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       return query;
     },
 
+    useSuspenseAPIQuery: (route, payload, options) => {
+      const client = useClient();
+      const queryKey: QueryKey = [createQueryKey(name, route, payload)];
+
+      const query = useSuspenseQuery({
+        queryKey,
+        queryFn: () =>
+          client
+            .request(route, payload, options?.axios)
+            .then((res) => res.data),
+        ...options,
+      });
+
+      return query;
+    },
+
     useInfiniteAPIQuery: (route, initPayload, options) => {
       const client = useClient();
       const queryKey: QueryKey = [
@@ -58,6 +78,33 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       ];
 
       const query = useInfiniteQuery({
+        ...options,
+        queryKey,
+        queryFn: ({ pageParam }) => {
+          const payload = {
+            ...initPayload,
+            ...(pageParam as any),
+            // casting here because `pageParam` is typed `any` and once it is
+            // merged with initPayload it makes `payload` `any`
+          } as typeof initPayload;
+
+          return client
+            .request(route, payload, options.axios)
+            .then((res) => res.data) as any;
+        },
+      });
+
+      return query;
+    },
+
+    useSuspenseInfiniteAPIQuery: (route, initPayload, options) => {
+      const client = useClient();
+      const queryKey: QueryKey = [
+        INFINITE_QUERY_KEY,
+        createQueryKey(name, route, initPayload),
+      ];
+
+      const query = useSuspenseInfiniteQuery({
         ...options,
         queryKey,
         initialPageParam: options.initialPageParam,
@@ -77,6 +124,7 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
 
       return query;
     },
+
     useAPIMutation: (route, options) => {
       const client = useClient();
 
@@ -108,6 +156,27 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       // simple solution.
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       return combineQueries(queries as any);
+    },
+
+    useSuspenseCombinedAPIQueries: (...routes) => {
+      const client = useClient();
+
+      const queries = useSuspenseQueries({
+        queries: routes.map(([endpoint, payload, options]) => ({
+          ...options,
+          queryKey: [createQueryKey(name, endpoint, payload)],
+          queryFn: () =>
+            client
+              .request(endpoint, payload, options?.axios)
+              .then((res) => res.data),
+        })) as [...SuspenseQueriesOptions<any>],
+      });
+
+      // The useQueries type inference is not quite as in-depth as ours is. So,
+      // the types don't fully agree here -- casting to `any` was a painful, but
+      // simple solution.
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      return suspenseCombineQueries(queries as any);
     },
 
     useAPICache: () => {

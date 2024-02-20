@@ -7,10 +7,17 @@ import {
   UseInfiniteQueryOptions,
   UseInfiniteQueryResult,
   InfiniteData,
+  UseSuspenseQueryResult,
+  UseSuspenseQueryOptions,
+  UseSuspenseInfiniteQueryOptions,
+  UseSuspenseInfiniteQueryResult,
   DefaultError,
 } from '@tanstack/react-query';
 import { AxiosRequestConfig } from 'axios';
-import { CombinedQueriesResult } from './combination';
+import {
+  CombinedQueriesResult,
+  SuspenseCombinedQueriesResult,
+} from './combination';
 
 /**
  * Extracts the path parameters from a route.
@@ -58,8 +65,33 @@ type RestrictedUseQueryOptions<
   axios?: AxiosRequestConfig;
 };
 
+type RestrictedUseSuspenseQueryOptions<
+  Response,
+  TError = DefaultError,
+  Data = Response,
+> = Omit<
+  UseSuspenseQueryOptions<Response, TError, Data>,
+  'queryKey' | 'queryFn'
+> & {
+  axios?: AxiosRequestConfig;
+};
+
 type RestrictedUseInfiniteQueryOptions<Response, Request> = Omit<
   UseInfiniteQueryOptions<InfiniteData<Response>, DefaultError>,
+  | 'queryKey'
+  | 'queryFn'
+  | 'initialPageParam'
+  | 'getNextPageParam'
+  | 'getPreviousPageParam'
+> & {
+  axios?: AxiosRequestConfig;
+  initialPageParam: Partial<Request>;
+  getNextPageParam: (lastPage: Response) => Partial<Request> | undefined;
+  getPreviousPageParam?: (firstPage: Response) => Partial<Request> | undefined;
+};
+
+type RestrictedUseSuspenseInfiniteQueryOptions<Response, Request> = Omit<
+  UseSuspenseInfiniteQueryOptions<InfiniteData<Response>, DefaultError>,
   | 'queryKey'
   | 'queryFn'
   | 'initialPageParam'
@@ -157,6 +189,19 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
     >,
   ) => UseQueryResult<Data>;
 
+  useSuspenseAPIQuery: <
+    Route extends keyof Endpoints & string,
+    Data = Endpoints[Route]['Response'],
+  >(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+    options?: RestrictedUseSuspenseQueryOptions<
+      Endpoints[Route]['Response'],
+      DefaultError,
+      Data
+    >,
+  ) => UseSuspenseQueryResult<Data>;
+
   useInfiniteAPIQuery: <Route extends keyof Endpoints & string>(
     route: Route,
     payload: RequestPayloadOf<Endpoints, Route>,
@@ -165,6 +210,18 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
       RequestPayloadOf<Endpoints, Route>
     >,
   ) => UseInfiniteQueryResult<
+    InfiniteData<Endpoints[Route]['Response']>,
+    DefaultError
+  >;
+
+  useSuspenseInfiniteAPIQuery: <Route extends keyof Endpoints & string>(
+    route: Route,
+    payload: RequestPayloadOf<Endpoints, Route>,
+    options: RestrictedUseSuspenseInfiniteQueryOptions<
+      Endpoints[Route]['Response'],
+      RequestPayloadOf<Endpoints, Route>
+    >,
+  ) => UseSuspenseInfiniteQueryResult<
     InfiniteData<Endpoints[Route]['Response']>,
     DefaultError
   >;
@@ -187,6 +244,14 @@ export type APIQueryHooks<Endpoints extends RoughEndpoints> = {
   useCombinedAPIQueries<Routes extends (keyof Endpoints & string)[]>(
     ...routes: [...CombinedRouteTuples<Endpoints, Routes>]
   ): CombinedQueriesResult<{
+    [Index in keyof Routes]: QueryObserverResult<
+      Endpoints[Routes[Index]]['Response']
+    >;
+  }>;
+
+  useSuspenseCombinedAPIQueries<Routes extends (keyof Endpoints & string)[]>(
+    ...routes: [...CombinedRouteTuples<Endpoints, Routes>]
+  ): SuspenseCombinedQueriesResult<{
     [Index in keyof Routes]: QueryObserverResult<
       Endpoints[Routes[Index]]['Response']
     >;

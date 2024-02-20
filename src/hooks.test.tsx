@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as TestingLibrary from '@testing-library/react';
 import { useQuery as useReactQuery } from '@tanstack/react-query';
+import { ErrorBoundary } from 'react-error-boundary';
 import axios, { AxiosInstance } from 'axios';
 import { createAPIHooks } from './hooks';
 import { createAPIMockingUtility } from './test-utils';
@@ -46,9 +47,12 @@ jest.spyOn(client, 'request');
 
 const {
   useAPIQuery,
+  useSuspenseAPIQuery,
   useInfiniteAPIQuery,
+  useSuspenseInfiniteAPIQuery,
   useAPIMutation,
   useCombinedAPIQueries,
+  useSuspenseCombinedAPIQueries,
   useAPICache,
 } = createAPIHooks<TestEndpoints>({
   name: 'test-name',
@@ -74,7 +78,13 @@ beforeEach(() => {
 const render = (Component: React.FC) =>
   TestingLibrary.render(<Component />, {
     wrapper: ({ children }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <ErrorBoundary fallback={<span>error fallback</span>}>
+        <React.Suspense fallback={<span>suspense fallback</span>}>
+          <QueryClientProvider client={queryClient}>
+            {children}
+          </QueryClientProvider>
+        </React.Suspense>
+      </ErrorBoundary>
     ),
   });
 
@@ -146,6 +156,80 @@ describe('useAPIQuery', () => {
     await TestingLibrary.waitFor(() => {
       expect(screen.queryByText('test-message')).toBeDefined();
     });
+  });
+});
+
+describe('useSuspenseAPIQuery', () => {
+  test('works correctly', async () => {
+    network.mock('GET /items', {
+      status: 200,
+      data: { message: 'test-message' },
+    });
+
+    const screen = render(() => {
+      const query = useSuspenseAPIQuery('GET /items', {
+        filter: 'test-filter',
+      });
+
+      return <div data-testid="content">{query.data?.message || ''}</div>;
+    });
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      screen.getByText(/suspense fallback/i),
+    );
+
+    expect((await screen.findByTestId('content')).textContent).toStrictEqual(
+      'test-message',
+    );
+  });
+
+  test('sending axios parameters works', async () => {
+    const getItems = jest.fn().mockReturnValue({
+      status: 200,
+      data: { message: 'test-message' },
+    });
+    network.mock('GET /items', getItems);
+
+    const screen = render(() => {
+      const query = useSuspenseAPIQuery(
+        'GET /items',
+        { filter: 'test-filter' },
+        { axios: { headers: { 'test-header': 'test-value' } } },
+      );
+      return <div data-testid="content">{query.data?.message || ''}</div>;
+    });
+
+    await screen.findByText(/test-message/i);
+
+    expect(getItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'test-header': 'test-value',
+        }),
+      }),
+    );
+  });
+
+  test('using select(...) works and is typed correctly', async () => {
+    network.mock('GET /items', {
+      status: 200,
+      data: { message: 'test-message' },
+    });
+
+    const screen = render(() => {
+      const query = useSuspenseAPIQuery(
+        'GET /items',
+        { filter: 'test-filter' },
+        { select: (data) => data.message },
+      );
+
+      // This line implicitly asserts that `query.data` is typed as string.
+      query.data.codePointAt(0);
+
+      return <div data-testid="content">{query.data}</div>;
+    });
+
+    await screen.findByText(/test-message/i);
   });
 });
 
@@ -331,6 +415,195 @@ describe('useInfiniteAPIQuery', () => {
         }),
       );
     });
+  });
+});
+
+describe('useSuspenseInfiniteAPIQuery', () => {
+  test('works correctly', async () => {
+    const next = 'second';
+    const previous = 'previous';
+    const pages = {
+      previous: {
+        previous: undefined,
+        next: 'first',
+        items: [
+          {
+            message: 'previous',
+          },
+        ],
+      },
+      first: {
+        previous,
+        next: 'second',
+        items: [
+          {
+            message: 'first',
+          },
+        ],
+      },
+      next: {
+        previous: 'first',
+        next: undefined,
+        items: [
+          {
+            message: 'second',
+          },
+        ],
+      },
+    };
+
+    const listSpy = jest
+      .fn()
+      .mockResolvedValueOnce({
+        status: 200,
+        data: pages.first,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: pages.next,
+      })
+      .mockResolvedValue({
+        status: 200,
+        data: pages.previous,
+      });
+
+    network.mock('GET /list', listSpy);
+
+    render(() => {
+      const query = useSuspenseInfiniteAPIQuery(
+        'GET /list',
+        {
+          filter: 'some-filter',
+          after: undefined,
+        },
+        {
+          initialPageParam: {},
+          getNextPageParam: (lastPage) => ({
+            after: lastPage.next,
+          }),
+          getPreviousPageParam: (firstPage) => ({
+            before: firstPage.previous,
+          }),
+        },
+      );
+
+      return (
+        <div>
+          <button
+            onClick={() => {
+              void query.fetchNextPage();
+            }}
+          >
+            fetch next
+          </button>
+          <button
+            onClick={() => {
+              void query.fetchPreviousPage();
+            }}
+          >
+            fetch previous
+          </button>
+          {query?.data?.pages?.flatMap((page) =>
+            page.items.map((message) => (
+              <p key={message.message}>{message.message}</p>
+            )),
+          )}
+        </div>
+      );
+    });
+
+    const [previousMessage, firstMessage, nextMessage] = Object.values(pages)
+      .flatMap((page) => page.items)
+      .map((item) => item.message);
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    // initial load
+    await TestingLibrary.screen.findByText(firstMessage);
+    expect(TestingLibrary.screen.queryByText(previousMessage)).not.toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).not.toBeTruthy();
+
+    // load next page _after_ first
+    TestingLibrary.fireEvent.click(
+      TestingLibrary.screen.getByRole('button', {
+        name: /fetch next/i,
+      }),
+    );
+    await TestingLibrary.screen.findByText(nextMessage);
+
+    expect(TestingLibrary.screen.queryByText(firstMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(previousMessage)).not.toBeTruthy();
+
+    // load previous page _before_ first
+    TestingLibrary.fireEvent.click(
+      TestingLibrary.screen.getByRole('button', {
+        name: /fetch previous/i,
+      }),
+    );
+    await TestingLibrary.screen.findByText(previousMessage);
+
+    // all data should now be on the page
+    expect(TestingLibrary.screen.queryByText(firstMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(nextMessage)).toBeTruthy();
+    expect(TestingLibrary.screen.queryByText(previousMessage)).toBeTruthy();
+
+    expect(listSpy).toHaveBeenCalledTimes(3);
+    expect(listSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        query: { filter: 'some-filter' },
+      }),
+    );
+    expect(listSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        query: { filter: 'some-filter', after: next },
+      }),
+    );
+    expect(listSpy).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        query: { filter: 'some-filter', before: previous },
+      }),
+    );
+  });
+
+  test('sending axios parameters works', async () => {
+    const listSpy = jest.fn().mockResolvedValue({
+      status: 200,
+      data: {
+        next: undefined,
+        items: [],
+      },
+    });
+
+    network.mock('GET /list', listSpy);
+
+    render(() => {
+      const query = useSuspenseInfiniteAPIQuery(
+        'GET /list',
+        { filter: 'test-filter' },
+        {
+          axios: { headers: { 'test-header': 'test-value' } },
+          initialPageParam: {},
+          getNextPageParam: () => ({}),
+        },
+      );
+      return <div>{query.data.pages.at(0)?.items.length}</div>;
+    });
+
+    await TestingLibrary.screen.findByText('0');
+
+    expect(listSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'test-header': 'test-value',
+        }),
+      }),
+    );
   });
 });
 
@@ -566,6 +839,150 @@ describe('useCombinedAPIQueries', () => {
         }),
       );
     });
+  });
+});
+
+describe('useSuspenseCombinedAPIQueries', () => {
+  beforeEach(() => {
+    network
+      .mock('GET /items', { status: 200, data: { message: 'get response' } })
+      .mock('POST /items', { status: 200, data: { message: 'post response' } })
+      .mock('GET /items/:id', {
+        status: 200,
+        data: { message: 'put response' },
+      });
+  });
+
+  const setup = () => {
+    const onRender = jest.fn();
+    const screen = render(() => {
+      const query = useSuspenseCombinedAPIQueries(
+        ['GET /items', { filter: '' }],
+        ['POST /items', { message: '' }],
+        ['GET /items/:id', { filter: '', id: 'test-id' }],
+      );
+
+      if (onRender) {
+        onRender(query);
+      }
+      return <button onClick={query.refetchAll}>Refetch All</button>;
+    });
+
+    return { screen, onRender };
+  };
+
+  test('error state', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    network.mock('POST /items', { status: 500, data: {} });
+    setup();
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    expect(TestingLibrary.screen.getByText(/error fallback/i)).toBeDefined();
+    errorSpy.mockRestore();
+  });
+
+  test('success state', async () => {
+    const { onRender } = setup();
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    expect(onRender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isPending: false,
+        isRefetching: false,
+        isError: false,
+        data: [
+          { message: 'get response' },
+          { message: 'post response' },
+          { message: 'put response' },
+        ],
+      }),
+    );
+  });
+
+  test('refetchAll', async () => {
+    network
+      .mockOrdered('GET /items', [
+        { status: 200, data: { message: 'get response 1' } },
+        { status: 200, data: { message: 'get response 2' } },
+      ])
+      .mockOrdered('POST /items', [
+        { status: 200, data: { message: 'post response 1' } },
+        { status: 200, data: { message: 'post response 2' } },
+      ])
+      .mockOrdered('GET /items/:id', [
+        { status: 200, data: { message: 'put response 1' } },
+        { status: 200, data: { message: 'put response 2' } },
+      ]);
+    const { screen, onRender } = setup();
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    expect(onRender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isPending: false,
+        isRefetching: false,
+        isError: false,
+        data: [
+          { message: 'get response 1' },
+          { message: 'post response 1' },
+          { message: 'put response 1' },
+        ],
+      }),
+    );
+
+    TestingLibrary.fireEvent.click(screen.getByText('Refetch All'));
+
+    await TestingLibrary.waitFor(() => {
+      expect(onRender).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isPending: false,
+          isRefetching: false,
+          isError: false,
+          data: [
+            { message: 'get response 2' },
+            { message: 'post response 2' },
+            { message: 'put response 2' },
+          ],
+        }),
+      );
+    });
+  });
+
+  test('sending axios parameters works', async () => {
+    const getItems = jest.fn().mockReturnValue({
+      status: 200,
+      data: { message: 'test-message' },
+    });
+    network.mock('GET /items', getItems);
+
+    render(() => {
+      useSuspenseCombinedAPIQueries([
+        'GET /items',
+        { filter: 'test-filter' },
+        { axios: { headers: { 'test-header': 'test-value' } } },
+      ]);
+      return <div data-testid="content" />;
+    });
+
+    await TestingLibrary.waitForElementToBeRemoved(() =>
+      TestingLibrary.screen.getByText(/suspense fallback/i),
+    );
+
+    expect(getItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'test-header': 'test-value',
+        }),
+      }),
+    );
   });
 });
 
