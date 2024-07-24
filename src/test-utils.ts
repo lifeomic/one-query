@@ -1,4 +1,4 @@
-import { RequestHandler, rest } from 'msw';
+import { RequestHandler, ResponseTransformer, rest } from 'msw';
 /**
  * Important: we need to avoid import actual values from these imports:
  * - 'msw/node'
@@ -20,8 +20,16 @@ type MSWUsable = {
 };
 
 export type APIMockerResponse<T> =
-  | { status: 200; data: T }
-  | { status: 400 | 401 | 403 | 404 | 500; data: any };
+  | {
+      status: 200;
+      data: T;
+      headers?: Record<string, string>;
+    }
+  | {
+      status: 400 | 401 | 403 | 404 | 500;
+      data: any;
+      headers?: Record<string, string>;
+    };
 
 type MockRequestHandler<
   Endpoints extends RoughEndpoints,
@@ -112,13 +120,22 @@ export const createAPIMocker = <Endpoints extends RoughEndpoints>(
 
       server.use(
         rest[lowercaseMethod](`${baseUrl}${url}`, async (req, res, ctx) => {
-          const resolve = options.once ? res.once : res;
+          const toMSWResponse = (response: APIMockerResponse<any>) => {
+            const resolve = options.once ? res.once : res;
+            const transformers: ResponseTransformer[] = [
+              ctx.status(response.status),
+              ctx.json(response.data),
+            ];
+            if (response.headers) {
+              for (const [key, value] of Object.entries(response.headers)) {
+                transformers.push(ctx.set(key, value));
+              }
+            }
+            return resolve(...transformers);
+          };
 
           if (typeof handlerOrResponse !== 'function') {
-            return resolve(
-              ctx.status(handlerOrResponse.status),
-              ctx.json(handlerOrResponse.data),
-            );
+            return toMSWResponse(handlerOrResponse);
           }
 
           const mockRequest = {
@@ -151,10 +168,7 @@ export const createAPIMocker = <Endpoints extends RoughEndpoints>(
             });
           }
 
-          return resolve(
-            ctx.status(mockedResponse.status),
-            ctx.json(mockedResponse.data),
-          );
+          return toMSWResponse(mockedResponse);
         }),
       );
 

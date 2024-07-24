@@ -82,6 +82,44 @@ describe('createAPIMockingUtility', () => {
       expect(result.status).toStrictEqual(200);
       expect(result.data).toStrictEqual({ message: payload.message });
     });
+
+    test('static response with headers', async () => {
+      network.mock('GET /items/:id', {
+        status: 200,
+        data: { message: 'some-message' },
+        headers: {
+          'test-response-header': 'some-value',
+        },
+      });
+
+      const payload = { id: v4(), filter: v4() };
+      const result = await client.request('GET /items/:id', payload);
+
+      expect(result.status).toStrictEqual(200);
+      expect(result.data).toStrictEqual({ message: 'some-message' });
+      expect(result.headers).toMatchObject({
+        'test-response-header': 'some-value',
+      });
+    });
+
+    test('function response with headers', async () => {
+      network.mock('GET /items/:id', () => ({
+        status: 200,
+        data: { message: 'some-message' },
+        headers: {
+          'test-response-header': 'some-value',
+        },
+      }));
+
+      const payload = { id: v4(), filter: v4() };
+      const result = await client.request('GET /items/:id', payload);
+
+      expect(result.status).toStrictEqual(200);
+      expect(result.data).toStrictEqual({ message: 'some-message' });
+      expect(result.headers).toMatchObject({
+        'test-response-header': 'some-value',
+      });
+    });
   });
 
   test('mockOrdered', async () => {
