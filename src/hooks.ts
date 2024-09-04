@@ -10,6 +10,7 @@ import {
   useSuspenseInfiniteQuery,
   useSuspenseQueries,
   SuspenseQueriesOptions,
+  QueryObserverOptions,
 } from '@tanstack/react-query';
 import { AxiosInstance } from 'axios';
 import { createCacheUtils, INFINITE_QUERY_KEY } from './cache';
@@ -24,11 +25,17 @@ export type CreateAPIQueryHooksOptions = {
    * call React hooks -- it will be called according to the rules of hooks.
    */
   client: AxiosInstance | (() => AxiosInstance);
+
+  useQueryOptions?: () => Omit<
+    QueryObserverOptions<any, any, any, any, any, any>,
+    'queryKey' | 'queryFn'
+  >;
 };
 
 export const createAPIHooks = <Endpoints extends RoughEndpoints>({
   name,
   client: axiosClient,
+  useQueryOptions = () => ({}),
 }: CreateAPIQueryHooksOptions): APIQueryHooks<Endpoints> => {
   const useClient = () =>
     new APIClient<Endpoints>(
@@ -42,7 +49,9 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       const client = useClient();
       const queryKey: QueryKey = [createQueryKey(name, route, payload)];
 
+      const overrides = useQueryOptions();
       const query = useQuery({
+        ...overrides,
         ...options,
         queryKey,
         queryFn: () =>
@@ -58,7 +67,9 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
       const client = useClient();
       const queryKey: QueryKey = [createQueryKey(name, route, payload)];
 
+      const overrides = useQueryOptions();
       const query = useSuspenseQuery({
+        ...overrides,
         queryKey,
         queryFn: () =>
           client
@@ -77,7 +88,9 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
         createQueryKey(name, route, initPayload),
       ];
 
+      const overrides = useQueryOptions();
       const query = useInfiniteQuery({
+        ...overrides,
         ...options,
         queryKey,
         queryFn: ({ pageParam }) => {
@@ -104,7 +117,9 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
         createQueryKey(name, route, initPayload),
       ];
 
+      const overrides = useQueryOptions();
       const query = useSuspenseInfiniteQuery({
+        ...overrides,
         ...options,
         queryKey,
         initialPageParam: options.initialPageParam,
@@ -140,8 +155,10 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
     useCombinedAPIQueries: (...routes) => {
       const client = useClient();
 
+      const overrides = useQueryOptions();
       const queries = useQueries({
         queries: routes.map(([endpoint, payload, options]) => ({
+          ...overrides,
           ...options,
           queryKey: [createQueryKey(name, endpoint, payload)],
           queryFn: () =>
@@ -161,8 +178,10 @@ export const createAPIHooks = <Endpoints extends RoughEndpoints>({
     useSuspenseCombinedAPIQueries: (...routes) => {
       const client = useClient();
 
+      const overrides = useQueryOptions();
       const queries = useSuspenseQueries({
         queries: routes.map(([endpoint, payload, options]) => ({
+          ...overrides,
           ...options,
           queryKey: [createQueryKey(name, endpoint, payload)],
           queryFn: () =>
