@@ -140,13 +140,17 @@ export type CacheUtils<Endpoints extends RoughEndpoints> = {
 
   updateCache: <Route extends keyof Endpoints & string>(
     route: Route,
-    payload: RequestPayloadOf<Endpoints, Route>,
+    payloadOrPredicate:
+      | RequestPayloadOf<Endpoints, Route>
+      | ((payload: RequestPayloadOf<Endpoints, Route>) => boolean),
     updater: CacheUpdate<Endpoints[Route]['Response']>,
   ) => void;
 
   updateInfiniteCache: <Route extends keyof Endpoints & string>(
     route: Route,
-    payload: RequestPayloadOf<Endpoints, Route>,
+    payloadOrPredicate:
+      | RequestPayloadOf<Endpoints, Route>
+      | ((payload: RequestPayloadOf<Endpoints, Route>) => boolean),
     updater: CacheUpdate<InfiniteData<Endpoints[Route]['Response']>>,
   ) => void;
 
