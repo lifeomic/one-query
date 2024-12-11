@@ -1557,6 +1557,50 @@ describe('useAPICache', () => {
 
         expect(updateFn).not.toHaveBeenCalled();
       });
+
+      it('allows updating using a predicate', async () => {
+        const updater =
+          method === 'updateCache'
+            ? () => ({ message: 'Samwise Gamgee' })
+            : () => ({
+                pages: [{ items: [{ message: 'Samwise Gamgee' }] }],
+                pageParams: [],
+              });
+
+        const screen = render(() => (
+          <TestComponent
+            getRenderData={config.getRenderData}
+            onPress={(cache) => {
+              const updateMethod = cache[method];
+
+              updateMethod(
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-expect-error
+                config.route,
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-expect-error
+                (payload) => payload.filter === '',
+                updater,
+              );
+            }}
+          />
+        ));
+
+        await screen.findByText('Response: Frodo Baggins');
+
+        expect(client.request).toHaveBeenCalledTimes(1);
+
+        TestingLibrary.fireEvent.click(screen.getByText('Update Cache'));
+
+        // The update does not happen immediately.
+        await TestingLibrary.waitFor(() => {
+          expect(screen.getByTestId('render-data').textContent).toStrictEqual(
+            'Response: Samwise Gamgee',
+          );
+        });
+
+        expect(client.request).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });

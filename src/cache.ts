@@ -2,13 +2,8 @@ import { QueryClient, QueryFilters } from '@tanstack/react-query';
 // eslint-disable-next-line no-restricted-imports
 import { isEqual } from 'lodash';
 import { produce } from 'immer';
-import {
-  CacheUtils,
-  EndpointInvalidationMap,
-  RequestPayloadOf,
-  RoughEndpoints,
-} from './types';
-import { InternalQueryKey, isInternalQueryKey } from './util';
+import { CacheUtils, EndpointInvalidationMap, RoughEndpoints } from './types';
+import { createQueryKey, isInternalQueryKey } from './util';
 
 const createQueryFilterFromSpec = <Endpoints extends RoughEndpoints>(
   endpoints: EndpointInvalidationMap<Endpoints>,
@@ -47,23 +42,43 @@ export const INFINITE_QUERY_KEY = 'infinite' as const;
 
 export const createCacheUtils = <Endpoints extends RoughEndpoints>(
   client: QueryClient,
-  makeQueryKey: <Route extends keyof Endpoints & string>(
-    route: Route,
-    payload: RequestPayloadOf<Endpoints, Route>,
-  ) => InternalQueryKey,
+  name: string,
 ): CacheUtils<Endpoints> => {
   const updateCache: (
     keyPrefix?: typeof INFINITE_QUERY_KEY,
   ) => CacheUtils<Endpoints>['updateCache'] =
-    (keyPrefix) => (route, payload, updater) => {
-      client.setQueryData<Endpoints[typeof route]['Response']>(
-        [keyPrefix, makeQueryKey(route, payload)].filter(Boolean),
+    (keyPrefix) => (route, payloadOrPredicate, updater) => {
+      client.setQueriesData<Endpoints[typeof route]['Response']>(
+        typeof payloadOrPredicate === 'function'
+          ? {
+              predicate: ({ queryKey }) => {
+                /* istanbul ignore next */
+                if (keyPrefix && queryKey[0] !== keyPrefix) {
+                  /* istanbul ignore next */
+                  return false;
+                }
+                const payloadInKey = keyPrefix ? queryKey[1] : queryKey[0];
+
+                return (
+                  isInternalQueryKey(payloadInKey) &&
+                  payloadInKey.name === name &&
+                  payloadInKey.route === route &&
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore These types are a bit finicky. Override it.
+                  payloadOrPredicate(payloadInKey.payload)
+                );
+              },
+            }
+          : {
+              queryKey: [
+                keyPrefix,
+                createQueryKey(name, route, payloadOrPredicate),
+              ].filter(Boolean),
+              exact: true,
+            },
         typeof updater !== 'function'
           ? updater
           : (current) => {
-              if (current === undefined) {
-                return;
-              }
               return produce(
                 current,
                 // @ts-expect-error TypeScript incorrectly thinks that `updater`
@@ -84,9 +99,12 @@ export const createCacheUtils = <Endpoints extends RoughEndpoints>(
     updateCache: updateCache(),
     updateInfiniteCache: updateCache(INFINITE_QUERY_KEY),
     getQueryData: (route, payload) =>
-      client.getQueryData([makeQueryKey(route, payload)]),
+      client.getQueryData([createQueryKey(name, route, payload)]),
     getInfiniteQueryData: (route, payload) =>
-      client.getQueryData([INFINITE_QUERY_KEY, makeQueryKey(route, payload)]),
+      client.getQueryData([
+        INFINITE_QUERY_KEY,
+        createQueryKey(name, route, payload),
+      ]),
     getQueriesData: (route) =>
       client
         .getQueriesData(createQueryFilterFromSpec({ [route]: 'all' }))
